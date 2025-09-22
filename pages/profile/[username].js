@@ -77,7 +77,6 @@ export default function Profile() {
 
   const goBack = () => {
     window.location.href = "/";
-
   }
 
   const openPostModal = (post) => {
@@ -179,16 +178,27 @@ export default function Profile() {
   const photosCount = posts.filter(post => post.media_type === 'image' || (!post.media_type && post.media_url)).length
   const videosCount = posts.filter(post => post.media_type === 'video').length
 
+  
+
+  useEffect(() => {
+    if (loading) {
+      document.body.style.backgroundColor = "black"
+      document.body.style.color = "#e6eef6"
+      document.body.style.fontFamily = '"Space Mono", monospace'
+    } else {
+      document.body.style.backgroundColor = ""
+      document.body.style.color = ""
+      document.body.style.fontFamily = ""
+    }
+  }, [loading])
+
   if (loading) {
     return (
       <div style={{
         minHeight: '100vh',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center',
-        background: 'black',
-        color: '#e6eef6',
-        fontFamily: '"Space Mono", monospace'
+        justifyContent: 'center'
       }}>
         <div style={{ textAlign: 'center' }}>
           <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: '24px', marginBottom: '16px' }}></i>
@@ -639,6 +649,41 @@ export default function Profile() {
           opacity: 0.5;
         }
 
+        .by{
+        font-size:8px;
+        position:absolute;
+        right:0;
+        margin-right:10px;  
+        bottom:-5px;
+        display:none; 
+        }
+
+        .by a{
+        text-decoration:none;
+        }
+
+        .media-loading {
+          position: relative;
+        }
+
+        .media-loading::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0,0,0,0.5);
+          backdrop-filter: blur(5px);
+          z-index: 1;
+          transition: opacity 0.3s ease;
+        }
+
+        .media-loaded::before {
+          opacity: 0;
+          pointer-events: none;
+        }
+
         @keyframes fadeIn {
           from { opacity: 0; }
           to { opacity: 1; }
@@ -650,10 +695,9 @@ export default function Profile() {
         }
 
         @media (max-width: 768px) {
-
-        body{
-        background:black;
-        }
+          body{
+            background:black;
+          }
           .profile-header{
             flex-direction: column;
             text-align: center;
@@ -671,17 +715,15 @@ export default function Profile() {
           }
 
           .stats{
-        justify-content:center;
+            justify-content:center;
           }
 
-         
-
           .post-header{
-          display:none;
+            display:none;
           }
          
           .post-content{
-          margin-top:0px;
+            margin-top:0px;
           }
           
           .tabs{
@@ -720,7 +762,8 @@ export default function Profile() {
               <img 
                 src={user.profile_pic_url} 
                 alt={user.username}
-                className="profile-pic-large"
+                className="profile-pic-large media-loading"
+                onLoad={(e) => e.target.classList.add('media-loaded')}
               />
             ) : (
               <div className="profile-pic-large" style={{
@@ -737,12 +780,11 @@ export default function Profile() {
           <div className="profile-info">
             <h1>{user.username}</h1>
             <div className="stats">
-                <div className="stats-number">{subscribersCount}</div> <div className="stat-label">subscribers</div>
-              </div>
+              <div className="stats-number">{subscribersCount}</div> 
+              <div className="stat-label">subscribers</div>
+            </div>
 
-
-
-              <div className="profile-actions">
+            <div className="profile-actions">
               <button 
                 className={`subscribe-btn ${isSubscribed ? 'subscribed' : ''}`}
                 onClick={toggleSubscribe}
@@ -761,8 +803,6 @@ export default function Profile() {
                 <i className="fa-solid fa-share"></i> Ulashish
               </button>
             </div>
-
-
 
             <div className="profile-stats">
               <div className="stat" onClick={() => setActiveTab('all')}>
@@ -783,7 +823,6 @@ export default function Profile() {
             {user.note && (
               <div className="profile-note">{user.note}</div>
             )}
-
           </div>
         </div>
 
@@ -843,7 +882,7 @@ export default function Profile() {
                     <>
                       {post.media_type === 'video' ? (
                         <>
-                          <video>
+                          <video className="media-loading" onLoadedData={(e) => e.target.classList.add('media-loaded')}>
                             <source src={post.media_url} type="video/mp4" />
                           </video>
                           <div className="video-indicator">
@@ -851,8 +890,14 @@ export default function Profile() {
                           </div>
                         </>
                       ) : (
-                        <img src={post.media_url} alt="Post" />
+                        <img 
+                          src={post.media_url} 
+                          alt="Post" 
+                          className="media-loading"
+                          onLoad={(e) => e.target.classList.add('media-loaded')}
+                        />
                       )}
+
                     </>
                   )}
                   <div className="post-item-overlay">
@@ -862,6 +907,8 @@ export default function Profile() {
               ))}
             </div>
           )}
+
+         <h1 className='by'> Powered by <a href='https://t.me/mrkeloff'>Abdurhmonovv</a></h1>
         </div>
 
         {/* Post Modal */}
@@ -875,14 +922,19 @@ export default function Profile() {
               <div className="post-media-container">
                 {selectedPost.media_url && (
                   selectedPost.media_type === 'video' ? (
-                    <video className="post-media-modal" controls>
+                    <video 
+                      className="post-media-modal media-loading" 
+                      controls
+                      onLoadedData={(e) => e.target.classList.add('media-loaded')}
+                    >
                       <source src={selectedPost.media_url} type="video/mp4" />
                     </video>
                   ) : (
                     <img 
                       src={selectedPost.media_url} 
                       alt="Post" 
-                      className="post-media-modal"
+                      className="post-media-modal media-loading"
+                      onLoad={(e) => e.target.classList.add('media-loaded')}
                     />
                   )
                 )}
@@ -900,6 +952,8 @@ export default function Profile() {
                         borderRadius: '50%',
                         objectFit: 'cover'
                       }}
+                      className="media-loading"
+                      onLoad={(e) => e.target.classList.add('media-loaded')}
                     />
                   ) : (
                     <div style={{

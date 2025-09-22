@@ -243,7 +243,7 @@ return (
             font-size: 18px;
             font-weight: 700;
             color: var(--accent);
-            margin-top:150px;
+            margin-top:50px;
         }
 
         .admin-title i {
@@ -663,7 +663,7 @@ return (
 
         .popular-badge {
         position: absolute;
-        top: 8px;
+        top: 50px;
         right: 8px;
         background: linear-gradient(135deg, var(--popular), #d97706);
         color: white;
@@ -711,6 +711,20 @@ return (
         color: var(--popular);
         }
 
+
+        .by{
+        font-size:6px;
+        position:absolute;
+        right:0;
+        margin-right:10px;  
+        bottom:-2px;
+        }
+
+        .by a{
+        text-decoration:none;
+        color:whitesmoke;
+        }
+
         @keyframes fadeIn {
         from { opacity: 0; }
         to { opacity: 1; }
@@ -746,6 +760,20 @@ return (
         .popular-badge {
             font-size: 9px;
             padding: 3px 6px;
+            top:60px;
+        }
+        }
+
+        @media (max-width: 345px){
+        .popular-badge{
+        margin-right:170px;
+        top:65px;
+        }
+
+        @media (max-width: 335px){
+        .popular-badge{
+        margin-right:160px;
+        top:65px;
         }
         }
     `}</style>
@@ -895,7 +923,7 @@ return (
         </div>
         )}
     </div>
-
+    <h1 className='by'> Powered by <a href='https://t.me/mrkeloff'>Abdurhmonovv</a></h1>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script dangerouslySetInnerHTML={{
         __html: `
@@ -1263,21 +1291,38 @@ return (
             window.location.href = '/users';
         });
 
-        async function uploadToNextJS(file, type, username, postIndex = null) {
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('type', type);
-            formData.append('username', username);
-            if (postIndex !== null) formData.append('postIndex', postIndex);
+        async function uploadToNextJS(file, type, username, postIndex = null, onProgress) {
+            return new Promise((resolve, reject) => {
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('type', type);
+                formData.append('username', username);
+                if (postIndex !== null) formData.append('postIndex', postIndex);
 
-            const response = await fetch('/api/upload', {
-            method: 'POST',
-            body: formData
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', '/api/upload', true);
+                xhr.timeout = 300000; // 5 minutes for large videos
+
+                xhr.upload.onprogress = (event) => {
+                    if (event.lengthComputable) {
+                        const percent = Math.round((event.loaded / event.total) * 100);
+                        onProgress(percent);
+                    }
+                };
+
+                xhr.onload = () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        const data = JSON.parse(xhr.responseText);
+                        resolve(data.url);
+                    } else {
+                        reject(new Error('Upload failed: ' + xhr.status));
+                    }
+                };
+
+                xhr.onerror = () => reject(new Error('Upload error'));
+                xhr.ontimeout = () => reject(new Error('Upload timeout'));
+                xhr.send(formData);
             });
-
-            if (!response.ok) throw new Error('Upload failed');
-            const data = await response.json();
-            return data.url;
         }
 
         function showProgress(progressElement, percent) {
@@ -1310,9 +1355,9 @@ return (
             let profileUrl = null;
             const profileFile = profilePic.files[0];
             if (profileFile) {
-                showProgress(profileProgress, 20);
-                profileUrl = await uploadToNextJS(profileFile, 'profile', username);
-                showProgress(profileProgress, 100);
+                profileUrl = await uploadToNextJS(profileFile, 'profile', username, null, (percent) => {
+                    showProgress(profileProgress, percent);
+                });
             }
 
             const { data: accountData, error: accountError } = await supabaseClient
@@ -1332,9 +1377,9 @@ return (
                 let mediaUrl = null;
                 let mediaType = null;
                 if (mediaFile) {
-                showProgress(postProgress, 30);
-                mediaUrl = await uploadToNextJS(mediaFile, 'post', username, i);
-                showProgress(postProgress, 100);
+                mediaUrl = await uploadToNextJS(mediaFile, 'post', username, i, (percent) => {
+                    showProgress(postProgress, percent);
+                });
                 mediaType = mediaFile.type.startsWith('video') ? 'video' : 'image';
                 }
                 if (content || mediaUrl) {
@@ -1386,7 +1431,8 @@ return (
             const { data, error } = await supabaseClient
             .from('instagram_accounts')
             .select('*')
-            .ilike('username', '%' + q + '%');
+            .ilike('username', '%' + q + '%')
+            .limit(3);
             
             if (error) { 
             results.innerHTML = '<div class="meta">Qidirishda xato yuz berdi</div>'; 
