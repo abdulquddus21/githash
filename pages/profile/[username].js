@@ -76,7 +76,8 @@ export default function Profile() {
   }
 
   const goBack = () => {
-    router.back()
+    window.location.href = "/";
+
   }
 
   const openPostModal = (post) => {
@@ -185,7 +186,7 @@ export default function Profile() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(180deg,#030617 0%, #071026 100%)',
+        background: 'black',
         color: '#e6eef6',
         fontFamily: '"Space Mono", monospace'
       }}>
@@ -204,7 +205,7 @@ export default function Profile() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(180deg,#030617 0%, #071026 100%)',
+        background: 'black',
         color: '#e6eef6',
         fontFamily: '"Space Mono", monospace'
       }}>
@@ -268,7 +269,6 @@ export default function Profile() {
           display: flex;
           align-items: center;
           gap: 20px;
-          margin-bottom: 30px;
           background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00));
           padding: 30px;
           border-radius: 16px;
@@ -407,7 +407,6 @@ export default function Profile() {
         .tabs-container{
           border-top: 1px solid rgba(255,255,255,0.1);
           padding-top: 20px;
-          margin-top: 20px;
         }
 
         .tabs{
@@ -675,6 +674,8 @@ export default function Profile() {
         justify-content:center;
           }
 
+         
+
           .post-header{
           display:none;
           }
@@ -734,7 +735,7 @@ export default function Profile() {
             )}
           </div>
           <div className="profile-info">
-            <h1>@{user.username}</h1>
+            <h1>{user.username}</h1>
             <div className="stats">
                 <div className="stats-number">{subscribersCount}</div> <div className="stat-label">subscribers</div>
               </div>
@@ -748,7 +749,7 @@ export default function Profile() {
               >
                 {isSubscribed ? (
                   <>
-                    <i className="fa-solid fa-check"></i> Obuna
+                    <i className="fa-solid fa-check"></i> Obuna bosildi
                   </>
                 ) : (
                   <>

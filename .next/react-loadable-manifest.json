@@ -15,12 +15,6 @@
     "id": "..\\node_modules\\@supabase\\storage-js\\dist\\module\\lib\\helpers.js -> @supabase/node-fetch",
     "files": []
   },
-  "profile\\[username].js -> @supabase/supabase-js": {
-    "id": "profile\\[username].js -> @supabase/supabase-js",
-    "files": [
-      "static/chunks/node_modules_supabase_supabase-js_dist_module_index_js.js"
-    ]
-  },
   "users.js -> @supabase/supabase-js": {
     "id": "users.js -> @supabase/supabase-js",
     "files": [

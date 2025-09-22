@@ -37,6 +37,9 @@ return (
         --accent:#7c3aed;
         --muted:#9aa4b2;
         --glass: rgba(255,255,255,0.03);
+        --popular: #f59e0b;
+        --success: #10b981;
+        --danger: #e85555;
         }
         *{box-sizing:border-box}
         html,body{height:100%}
@@ -132,6 +135,25 @@ return (
         border-radius:12px;
         border:1px solid rgba(255,255,255,0.02);
         box-shadow: 0 6px 18px rgba(2,6,23,0.35);
+
+        ::-webkit-scrollbar {
+  width: 1px;           /* kengligi (vertical scroll uchun) */
+  height: 1px;          /* balandligi (horizontal scroll uchun) */
+}
+
+/* Scroll yo'lagining fon rangi */
+::-webkit-scrollbar-track {
+  background:#9c34c24a;   /* orqa fon */
+  border-radius: 10px;
+}
+
+/* Scrollning o'zi */
+::-webkit-scrollbar-thumb {
+  background:  #B54CFF;   /* scroll rangi */
+  border-radius: 10px;   /* yumaloqlash */
+}
+
+
         }
 
         .list{display:flex;flex-direction:column;gap:10px;max-height:420px;overflow:auto;padding-right:6px}
@@ -139,12 +161,24 @@ return (
         display:flex;align-items:start;gap:12px;padding:10px;border-radius:8px;background:rgba(255,255,255,0.01);border:1px solid rgba(255,255,255,0.02);
         transition: all 0.2s;
         cursor: pointer;
+        position: relative;
         }
         .item:hover{
         background:rgba(255,255,255,0.03);
         border-color:rgba(255,255,255,0.05);
         transform: translateY(-1px);
         }
+        
+        .item.popular {
+        background: linear-gradient(135deg, rgba(245,158,11,0.05), rgba(245,158,11,0.02));
+        border: 1px solid rgba(245,158,11,0.15);
+        }
+        
+        .item.popular:hover {
+        background: linear-gradient(135deg, rgba(245,158,11,0.08), rgba(245,158,11,0.04));
+        border-color: rgba(245,158,11,0.25);
+        }
+        
         .username{font-weight:700;margin-bottom:4px}
         .meta{color:var(--muted);font-size:13px}
         .profile-pic{width:60px;height:60px;border-radius:12px;object-fit:cover;margin-right:12px;border:2px solid rgba(255,255,255,0.1)}
@@ -167,6 +201,358 @@ return (
         border-radius: 2px; 
         transition: width 0.3s; 
         margin-top: 5px;
+        }
+
+        /* IMPROVED ADMIN PANEL STYLES */
+        .admin-panel {
+            background: linear-gradient(135deg, rgba(124, 58, 237, 0.02), rgba(124, 58, 237, 0.01));
+            border: 1px solid rgba(124, 58, 237, 0.1);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(124, 58, 237, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .admin-panel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent), var(--popular));
+            border-radius: 16px 16px 0 0;
+        }
+
+        .admin-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top:300px
+            padding-bottom: 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .admin-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--accent);
+            margin-top:150px;
+        }
+
+        .admin-title i {
+            background: linear-gradient(135deg, var(--accent), var(--popular));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-size: 20px;
+        }
+
+        .admin-form {
+            display: grid;
+            gap: 20px;
+        }
+
+        .form-section {
+            background: rgba(255,255,255,0.01);
+            padding: 16px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.03);
+        }
+
+        .form-section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #e6eef6;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .form-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .input-group label {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .input-with-icon {
+            position: relative;
+        }
+
+        .input-with-icon i {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .input-with-icon input {
+            padding-left: 38px;
+        }
+
+        .posts-section {
+            border: 1px dashed rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 16px;
+            margin: 16px 0;
+            background: rgba(255,255,255,0.005);
+        }
+
+        .posts-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .posts-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #e6eef6;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-add-post {
+            background: linear-gradient(135deg, var(--accent), #6d28d9);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-add-post:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+        }
+
+        .post-entry {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 12px;
+            position: relative;
+        }
+
+        .post-entry-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .post-entry-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #e6eef6;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .remove-post {
+            background: var(--danger);
+            color: white;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .remove-post:hover {
+            background: #dc2626;
+            transform: scale(0.95);
+        }
+
+        .admin-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent), #6d28d9);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 120px;
+            justify-content: center;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(124, 58, 237, 0.4);
+        }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.05);
+            color: #e6eef6;
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 120px;
+            justify-content: center;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.1);
+            transform: translateY(-1px);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, var(--danger), #dc2626);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 120px;
+            justify-content: center;
+        }
+
+        .btn-danger:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(232, 85, 85, 0.4);
+        }
+
+        .admin-hint {
+            background: rgba(245, 158, 11, 0.05);
+            border: 1px solid rgba(245, 158, 11, 0.15);
+            border-radius: 10px;
+            padding: 12px;
+            margin-top: 16px;
+            color: var(--popular);
+            font-size: 12px;
+            line-height: 1.4;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+
+        .admin-hint i {
+            margin-top: 2px;
+            flex-shrink: 0;
+        }
+
+        .admin-users-section {
+            text-align: center;
+            margin-top: 24px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255,255,255,0.05);
+        }
+
+        /* Responsive improvements */
+        @media (max-width: 600px) {
+            .admin-panel {
+                padding: 16px;
+            }
+
+            .admin-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+
+            .admin-title {
+                font-size: 16px;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .admin-actions {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .btn-primary, .btn-secondary, .btn-danger {
+                min-width: 100%;
+                justify-content: center;
+            }
+
+            .posts-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+
+            .btn-add-post {
+                align-self: stretch;
+                justify-content: center;
+            }
+        }
+
+        @media (max-width: 400px) {
+            .admin-panel {
+                padding: 12px;
+            }
+
+            .form-section {
+                padding: 12px;
+            }
+
+            .post-entry {
+                padding: 10px;
+            }
         }
 
         .modal-overlay {
@@ -275,6 +661,56 @@ return (
         display: inline-block;
         }
 
+        .popular-badge {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        background: linear-gradient(135deg, var(--popular), #d97706);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        box-shadow: 0 2px 8px rgba(245,158,11,0.3);
+        animation: popularPulse 2s ease-in-out infinite;
+        }
+
+        .search-count {
+        background: rgba(245,158,11,0.1);
+        color: var(--popular);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        margin-left: 8px;
+        }
+
+        .popular-section {
+        margin-bottom: 20px;
+        }
+
+        .section-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .section-title {
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--popular);
+        }
+
+        .section-icon {
+        font-size: 16px;
+        color: var(--popular);
+        }
+
         @keyframes fadeIn {
         from { opacity: 0; }
         to { opacity: 1; }
@@ -290,12 +726,27 @@ return (
         50% { opacity: 0.7; }
         }
 
+        @keyframes popularPulse {
+        0%, 100% { 
+            transform: scale(1); 
+            box-shadow: 0 2px 8px rgba(245,158,11,0.3);
+        }
+        50% { 
+            transform: scale(1.05); 
+            box-shadow: 0 4px 12px rgba(245,158,11,0.5);
+        }
+        }
+
         @media (max-width: 480px) {
         .modal {
             margin: 20px;
             padding: 20px;
         }
         .profile-pic{width:50px;height:50px}
+        .popular-badge {
+            font-size: 9px;
+            padding: 3px 6px;
+        }
         }
     `}</style>
 
@@ -316,39 +767,86 @@ return (
         </div>
 
         <div id="admin-area" style={{display:'none'}}>
-            <div className="card">
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                <strong>Admin panel</strong>
-                <button id="btn-lock" className="btn" style={{minWidth:'90px',background:'#e85555'}}>
-                <i className="fa-solid fa-lock"></i> Lock
-                </button>
-            </div>
-
-            <div style={{marginTop:'12px'}}>
-                <label className="small">Instagram username</label>
-                <input id="add-username" className="small" type="text" placeholder="username" />
-                <label className="small" style={{marginTop:'8px'}}>Izoh (ixtiyoriy)</label>
-                <input id="add-note" className="small" type="text" placeholder="izoh" />
-                <label className="small" style={{marginTop:'8px'}}>Glavniy rasm (ixtiyoriy)</label>
-                <input id="profile-pic" type="file" accept="image/*" />
-                <div id="profile-progress" className="upload-progress" style={{width:'0%',display:'none'}}></div>
-                <div id="posts-container" style={{marginTop:'12px'}}></div>
-                <button id="btn-add-post" className="btn" style={{marginTop:'8px'}}>
-                <i className="fa-solid fa-plus"></i> Post qo'shish
-                </button>
-                <div style={{display:'flex',justifyContent:'flex-end',marginTop:'10px'}}>
-                <button id="btn-add" className="btn">
-                    <i className="fa-solid fa-user-plus"></i> Qo'shish
-                </button>
+            <div className="admin-panel">
+                <div className="admin-header">
+                    <div className="admin-title">
+                        <i className="fa-solid fa-crown"></i>
+                        <span>Admin Panel</span>
+                    </div>
+                    <button id="btn-lock" className="btn-danger">
+                        <i className="fa-solid fa-lock"></i> Lock
+                    </button>
                 </div>
-                <div className="hint">Qo'shilgan hisoblar hamma uchun qidiruvda ko'rinadi. Fayllar assets/ papkasiga saqlanadi.</div>
-            </div>
 
-            <div style={{marginTop:'20px', display:'flex', justifyContent:'center'}}>
-                <button id="btn-users" className="btn">
-                <i className="fa-solid fa-users"></i> Users
-                </button>
-            </div>
+                <div className="admin-form">
+                    <div className="form-section">
+                        <div className="form-section-title">
+                            <i className="fa-solid fa-user"></i>
+                            Foydalanuvchi ma'lumotlari
+                        </div>
+                        
+                        <div className="form-row">
+                            <div className="input-group">
+                                <label>Instagram Username</label>
+                                <div className="input-with-icon">
+                                    <i className="fa-brands fa-instagram"></i>
+                                    <input id="add-username" type="text" placeholder="username" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="form-row">
+                            <div className="input-group">
+                                <label>Izoh (ixtiyoriy)</label>
+                                <div className="input-with-icon">
+                                    <i className="fa-solid fa-comment"></i>
+                                    <input id="add-note" type="text" placeholder="izoh" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="form-row">
+                            <div className="input-group">
+                                <label>Profil rasmi (ixtiyoriy)</label>
+                                <input id="profile-pic" type="file" accept="image/*" />
+                                <div id="profile-progress" className="upload-progress" style={{width:'0%',display:'none'}}></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="posts-section">
+                        <div className="posts-header">
+                            <div className="posts-title">
+                                <i className="fa-solid fa-images"></i>
+                                Postlar
+                            </div>
+                            <button id="btn-add-post" className="btn-add-post">
+                                <i className="fa-solid fa-plus"></i>
+                                Post qo'shish
+                            </button>
+                        </div>
+                        <div id="posts-container"></div>
+                    </div>
+
+                    <div className="admin-actions">
+                        <button id="btn-add" className="btn-primary">
+                            <i className="fa-solid fa-user-plus"></i>
+                            Qo'shish
+                        </button>
+                    </div>
+
+                    <div className="admin-hint">
+                        <i className="fa-solid fa-info-circle"></i>
+                        <span>Qo'shilgan hisoblar hamma uchun qidiruvda ko'rinadi. Fayllar assets/ papkasiga saqlanadi.</span>
+                    </div>
+                </div>
+
+                <div className="admin-users-section">
+                    <button id="btn-users" className="btn-secondary">
+                        <i className="fa-solid fa-users"></i>
+                        Users
+                    </button>
+                </div>
             </div>
         </div>
         </div>
@@ -436,17 +934,242 @@ return (
             isAdmin = true;
             showAdmin();
             }
+
+            // Initialize search statistics table if it doesn't exist
+            await initializeSearchStats();
+            
+            // Load popular users on page load
+            await loadPopularUsers();
         })();
 
+        async function initializeSearchStats() {
+            try {
+                // Check if the table exists by trying to select from it
+                const { data, error } = await supabaseClient
+                .from('search_statistics')
+                .select('id')
+                .limit(1);
+                
+                // If table doesn't exist or has error, it will be created by the database admin
+                // This is just to handle the initial case gracefully
+                if (error) {
+                    console.log('Search statistics table not found or error:', error.message);
+                }
+            } catch (error) {
+                console.log('Error initializing search stats:', error);
+            }
+        }
+
+        async function incrementProfileView(username) {
+            try {
+            // First, check if the username already exists in statistics
+            const { data: existing, error: selectError } = await supabaseClient
+                .from('search_statistics')
+                .select('*')
+                .eq('username', username)
+                .single();
+
+            if (selectError && selectError.code !== 'PGRST116') {
+                console.error('Error checking existing stats:', selectError);
+                return;
+            }
+
+            if (existing) {
+                // Update existing record - increment profile_views
+                const { error: updateError } = await supabaseClient
+                .from('search_statistics')
+                .update({ 
+                    profile_views: (existing.profile_views || 0) + 1,
+                    last_viewed: new Date().toISOString()
+                })
+                .eq('username', username);
+                
+                if (updateError) {
+                console.error('Error updating profile view count:', updateError);
+                }
+            } else {
+                // Insert new record
+                const { error: insertError } = await supabaseClient
+                .from('search_statistics')
+                .insert({ 
+                    username: username,
+                    search_count: 0,
+                    profile_views: 1,
+                    last_viewed: new Date().toISOString()
+                });
+                
+                if (insertError) {
+                console.error('Error inserting profile view count:', insertError);
+                }
+            }
+            } catch (error) {
+            console.error('Error in incrementProfileView:', error);
+            }
+        }
+
+        async function incrementSearchCount(username) {
+            try {
+            // First, check if the username already exists in statistics
+            const { data: existing, error: selectError } = await supabaseClient
+                .from('search_statistics')
+                .select('*')
+                .eq('username', username)
+                .single();
+
+            if (selectError && selectError.code !== 'PGRST116') {
+                console.error('Error checking existing stats:', selectError);
+                return;
+            }
+
+            if (existing) {
+                // Update existing record
+                const { error: updateError } = await supabaseClient
+                .from('search_statistics')
+                .update({ 
+                    search_count: existing.search_count + 1,
+                    last_searched: new Date().toISOString()
+                })
+                .eq('username', username);
+                
+                if (updateError) {
+                console.error('Error updating search count:', updateError);
+                }
+            } else {
+                // Insert new record
+                const { error: insertError } = await supabaseClient
+                .from('search_statistics')
+                .insert({ 
+                    username: username,
+                    search_count: 1,
+                    profile_views: 0,
+                    last_searched: new Date().toISOString()
+                });
+                
+                if (insertError) {
+                console.error('Error inserting search count:', insertError);
+                }
+            }
+            } catch (error) {
+            console.error('Error in incrementSearchCount:', error);
+            }
+        }
+
+        async function loadPopularUsers() {
+            try {
+            // Get top 10 most viewed profiles (based on profile_views, not search_count)
+            const { data: popularStats, error: statsError } = await supabaseClient
+                .from('search_statistics')
+                .select('username, profile_views, search_count')
+                .order('profile_views', { ascending: false })
+                .limit(10);
+
+            if (statsError || !popularStats || popularStats.length === 0) {
+                results.innerHTML = '<div class="meta">Hech qanday profil hali ko\\'rilmagan.</div>';
+                return;
+            }
+
+            // Filter only users with profile_views > 0
+            const viewedUsers = popularStats.filter(stat => stat.profile_views > 0);
+
+            if (viewedUsers.length === 0) {
+                results.innerHTML = '<div class="meta">Hech qanday profil hali ko\\'rilmagan.</div>';
+                return;
+            }
+
+            // Get user details for popular users
+            const usernames = viewedUsers.map(stat => stat.username);
+            const { data: accounts, error: accountsError } = await supabaseClient
+                .from('instagram_accounts')
+                .select('*')
+                .in('username', usernames);
+
+            if (accountsError || !accounts) {
+                results.innerHTML = '<div class="meta">Mashhur foydalanuvchilarni yuklab bo\\'lmadi.</div>';
+                return;
+            }
+
+            // Merge view stats with account data
+            const popularUsers = accounts.map(account => {
+                const stats = viewedUsers.find(stat => stat.username === account.username);
+                return {
+                ...account,
+                profile_views: stats ? stats.profile_views : 0,
+                search_count: stats ? stats.search_count : 0
+                };
+            }).sort((a, b) => b.profile_views - a.profile_views);
+
+            await renderPopularUsers(popularUsers);
+            } catch (error) {
+            console.error('Error loading popular users:', error);
+            results.innerHTML = '<div class="meta">Xato yuz berdi.</div>';
+            }
+        }
+
+        async function renderPopularUsers(users) {
+            results.innerHTML = '';
+            
+            if (!users || users.length === 0) {
+            results.innerHTML = '<div class="meta">Mashhur foydalanuvchilar topilmadi.</div>';
+            return;
+            }
+
+            // Add section header
+            const headerDiv = document.createElement('div');
+            headerDiv.className = 'section-header';
+            headerDiv.innerHTML = '<i class="fa-solid fa-fire section-icon"></i>' +
+            '<span class="section-title">Eng ko\\'p ko\\'rilgan profillar</span>';
+            results.appendChild(headerDiv);
+
+            for (const user of users) {
+            // Get posts count
+            const { data: posts } = await supabaseClient
+                .from('posts')
+                .select('id')
+                .eq('account_id', user.id);
+            
+            const postsCount = posts ? posts.length : 0;
+            
+            const div = document.createElement('div');
+            div.className = 'item popular';
+            
+            div.innerHTML = '<div class="popular-badge">Mashhur</div>' +
+                '<div style="display:flex;align-items:start;width:100%">' + 
+                (user.profile_pic_url ? '<img class="profile-pic" src="' + user.profile_pic_url + '" alt="Profile">' : '') + 
+                '<div style="flex:1"><div class="username">@' + escapeHtml(user.username) + 
+                '<span class="search-count"><i class="fa-solid fa-eye"></i> ' + user.profile_views + '</span></div>' +
+                '<div class="meta">' + escapeHtml(user.note || 'Izoh yoq') + '</div>' + 
+                (postsCount > 0 ? '<div class="posts-count"><i class="fa-solid fa-images"></i> ' + postsCount + ' ta post</div>' : '') +
+                '</div></div>';
+            
+            // Add click event - increment profile view when clicked
+            div.addEventListener('click', () => {
+                incrementProfileView(user.username);
+                window.location.href = '/profile/' + encodeURIComponent(user.username);
+            });
+            
+            results.appendChild(div);
+            }
+        }
+
         function escapeHtml(str) {
+            if (!str) return '';
             return str.replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
         }
 
-        async function renderList(items) {
+        async function renderList(items, isSearchResult = false) {
             results.innerHTML = '';
             if (!items || items.length === 0) {
             results.innerHTML = '<div class="meta">Hech narsa topilmadi.</div>';
             return;
+            }
+
+            if (isSearchResult) {
+            // Add search results header
+            const headerDiv = document.createElement('div');
+            headerDiv.className = 'section-header';
+            headerDiv.innerHTML = '<i class="fa-solid fa-search section-icon"></i>' +
+                '<span class="section-title">Qidiruv natijalari</span>';
+            results.appendChild(headerDiv);
             }
             
             for (const item of items) {
@@ -469,8 +1192,9 @@ return (
                 (postsCount > 0 ? '<div class="posts-count"><i class="fa-solid fa-images"></i> ' + postsCount + ' ta post</div>' : '') +
                 '</div></div>';
             
-            // Add click event to go to profile
+            // Add click event to go to profile and increment view count
             div.addEventListener('click', () => {
+                incrementProfileView(item.username);
                 window.location.href = '/profile/' + encodeURIComponent(item.username);
             });
             
@@ -494,18 +1218,37 @@ return (
         function addPostEntry() {
             const postDiv = document.createElement('div');
             postDiv.className = 'post-entry';
-            postDiv.innerHTML = '<label class="small">Post izoh (ixtiyoriy)</label>' +
-            '<input type="text" class="small post-content" placeholder="Post izoh" />' +
-            '<label class="small">Post media (rasm yoki video, ixtiyoriy)</label>' +
-            '<input type="file" class="post-media" accept="image/*,video/*" />' +
-            '<div class="upload-progress" style="width:0%;display:none"></div>' +
-            '<button class="btn remove-post"><i class="fa-solid fa-trash"></i> O\\'chirish</button>';
+            postDiv.innerHTML = 
+            '<div class="post-entry-header">' +
+                '<div class="post-entry-title">' +
+                    '<i class="fa-solid fa-image"></i>' +
+                    'Post #' + (postEntries.length + 1) +
+                '</div>' +
+                '<button class="remove-post">' +
+                    '<i class="fa-solid fa-trash"></i>' +
+                '</button>' +
+            '</div>' +
+            '<div class="input-group">' +
+                '<label>Post izoh (ixtiyoriy)</label>' +
+                '<input type="text" class="post-content" placeholder="Post izoh" />' +
+            '</div>' +
+            '<div class="input-group">' +
+                '<label>Post media (rasm yoki video, ixtiyoriy)</label>' +
+                '<input type="file" class="post-media" accept="image/*,video/*" />' +
+                '<div class="upload-progress" style="width:0%;display:none"></div>' +
+            '</div>';
+            
             postsContainer.appendChild(postDiv);
             postEntries.push(postDiv);
 
             postDiv.querySelector('.remove-post').addEventListener('click', () => {
             postsContainer.removeChild(postDiv);
             postEntries = postEntries.filter(p => p !== postDiv);
+            // Update post numbers
+            postEntries.forEach((entry, index) => {
+                const title = entry.querySelector('.post-entry-title');
+                title.innerHTML = '<i class="fa-solid fa-image"></i>Post #' + (index + 1);
+            });
             });
         }
 
@@ -622,7 +1365,7 @@ return (
         btnSearch.addEventListener('click', async () => {
             const q = mainInput.value.trim();
             if (!q) { 
-            results.innerHTML = '<div class="meta">Username kiriting</div>'; 
+            await loadPopularUsers();
             return; 
             }
 
@@ -637,15 +1380,20 @@ return (
             // Show loading
             results.innerHTML = '<div class="meta"><i class="fa-solid fa-spinner fa-spin"></i> Qidirilmoqda...</div>';
 
+            // Increment search count for the searched username
+            await incrementSearchCount(q);
+
             const { data, error } = await supabaseClient
             .from('instagram_accounts')
             .select('*')
             .ilike('username', '%' + q + '%');
+            
             if (error) { 
             results.innerHTML = '<div class="meta">Qidirishda xato yuz berdi</div>'; 
             return; 
             }
-            renderList(data);
+            
+            renderList(data, true);
         });
 
         mainInput.addEventListener('keypress', e => {
@@ -654,5 +1402,5 @@ return (
         `
     }} />
     </>
-)
+    )
 }

@@ -115,8 +115,8 @@ export default function Users() {
   }
 
   const goBack = () => {
-    router.push('/')
-  }
+    router.push("/"); // index sahifa
+  };
 
   return (
     <>
