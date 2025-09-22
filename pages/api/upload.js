@@ -50,7 +50,7 @@ const ALLOWED_MIME_TYPES = [
 ];
 
 // Fayl o'lchamini tekshirish (10MB limit - Supabase uchun)
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_FILE_SIZE = 150 * 1024 * 1024; // 150MB
 
 // Xavfli fayllarni tekshirish
 const DANGEROUS_EXTENSIONS = ['.exe', '.bat', '.cmd', '.scr', '.pif', '.com', '.js', '.vbs', '.jar'];

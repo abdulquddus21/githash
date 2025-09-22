@@ -732,7 +732,7 @@ export default function Profile() {
           
           .posts-grid{
             grid-template-columns: repeat(3, 1fr);
-            gap: 2px;
+            gap: 10px;
           }
           
           .post-modal{
