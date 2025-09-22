@@ -229,7 +229,6 @@ return (
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-top:300px
             padding-bottom: 16px;
             border-bottom: 1px solid rgba(255,255,255,0.05);
             flex-wrap: wrap;
@@ -243,7 +242,6 @@ return (
             font-size: 18px;
             font-weight: 700;
             color: var(--accent);
-            margin-top:50px;
         }
 
         .admin-title i {
@@ -1261,8 +1259,8 @@ return (
                 '<input type="text" class="post-content" placeholder="Post izoh" />' +
             '</div>' +
             '<div class="input-group">' +
-                '<label>Post media (rasm yoki video, ixtiyoriy)</label>' +
-                '<input type="file" class="post-media" accept="image/*,video/*" />' +
+                '<label>Post media (rasm yoki video, ixtiyoriy, bir nechta fayl tanlash mumkin)</label>' +
+                '<input type="file" class="post-media" accept="image/*,video/*" multiple />' +
                 '<div class="upload-progress" style="width:0%;display:none"></div>' +
             '</div>';
             
@@ -1291,10 +1289,14 @@ return (
             window.location.href = '/users';
         });
 
-        async function uploadToNextJS(file, type, username, postIndex = null, onProgress) {
+        async function uploadToNextJS(files, type, username, postIndex = null, onProgress) {
             return new Promise((resolve, reject) => {
                 const formData = new FormData();
-                formData.append('file', file);
+                if (Array.isArray(files)) {
+                    files.forEach(file => formData.append('file', file));
+                } else {
+                    formData.append('file', files);
+                }
                 formData.append('type', type);
                 formData.append('username', username);
                 if (postIndex !== null) formData.append('postIndex', postIndex);
@@ -1313,7 +1315,12 @@ return (
                 xhr.onload = () => {
                     if (xhr.status >= 200 && xhr.status < 300) {
                         const data = JSON.parse(xhr.responseText);
-                        resolve(data.url);
+                        if (data.errors && data.errors.length > 0) {
+                            reject(new Error('Upload failed for some files: ' + data.errors.map(e => e.error).join(', ')));
+                        } else {
+                            const urls = data.uploaded ? data.uploaded.map(u => u.url) : [data.url];
+                            resolve(urls);
+                        }
                     } else {
                         reject(new Error('Upload failed: ' + xhr.status));
                     }
@@ -1355,9 +1362,10 @@ return (
             let profileUrl = null;
             const profileFile = profilePic.files[0];
             if (profileFile) {
-                profileUrl = await uploadToNextJS(profileFile, 'profile', username, null, (percent) => {
+                const profileUrls = await uploadToNextJS(profileFile, 'profile', username, null, (percent) => {
                     showProgress(profileProgress, percent);
                 });
+                profileUrl = profileUrls[0];
             }
 
             const { data: accountData, error: accountError } = await supabaseClient
@@ -1371,24 +1379,28 @@ return (
             for (let i = 0; i < postEntries.length; i++) {
                 const postDiv = postEntries[i];
                 const content = postDiv.querySelector('.post-content').value.trim();
-                const mediaFile = postDiv.querySelector('.post-media').files[0];
+                const mediaFiles = Array.from(postDiv.querySelector('.post-media').files);
                 const postProgress = postDiv.querySelector('.upload-progress');
                 
-                let mediaUrl = null;
-                let mediaType = null;
-                if (mediaFile) {
-                mediaUrl = await uploadToNextJS(mediaFile, 'post', username, i, (percent) => {
-                    showProgress(postProgress, percent);
-                });
-                mediaType = mediaFile.type.startsWith('video') ? 'video' : 'image';
-                }
-                if (content || mediaUrl) {
-                await supabaseClient.from('posts').insert({
-                    account_id: accountId,
-                    content,
-                    media_url: mediaUrl,
-                    media_type: mediaType
-                });
+                if (mediaFiles.length > 0) {
+                    const mediaUrls = await uploadToNextJS(mediaFiles, 'post', username, i, (percent) => {
+                        showProgress(postProgress, percent);
+                    });
+                    for (let j = 0; j < mediaUrls.length; j++) {
+                        const mediaUrl = mediaUrls[j];
+                        const mediaType = mediaFiles[j].type.startsWith('video') ? 'video' : 'image';
+                        await supabaseClient.from('posts').insert({
+                            account_id: accountId,
+                            content,
+                            media_url: mediaUrl,
+                            media_type: mediaType
+                        });
+                    }
+                } else if (content) {
+                    await supabaseClient.from('posts').insert({
+                        account_id: accountId,
+                        content
+                    });
                 }
             }
 

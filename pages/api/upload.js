@@ -55,6 +55,9 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 // Xavfli fayllarni tekshirish
 const DANGEROUS_EXTENSIONS = ['.exe', '.bat', '.cmd', '.scr', '.pif', '.com', '.js', '.vbs', '.jar'];
 
+// Maksimal fayllar soni
+const MAX_FILES = 10; // Masalan, 10 tagacha fayl yuklashga ruxsat
+
 function isFileTypeAllowed(filename, mimetype) {
   const extension = path.extname(filename).toLowerCase();
   
@@ -126,9 +129,10 @@ export default async function handler(req, res) {
 
     const form = new IncomingForm({
       maxFileSize: MAX_FILE_SIZE,
-      maxFiles: 5,
+      maxFiles: MAX_FILES,
       allowEmptyFiles: false,
       minFileSize: 1,
+      multiples: true, // Ko'p fayl yuklashni yoqish
     });
 
     form.parse(req, async (err, fields, files) => {
@@ -137,126 +141,163 @@ export default async function handler(req, res) {
         
         if (err.code === 'LIMIT_FILE_SIZE') {
           return res.status(413).json({ 
-            error: 'Fayl hajmi juda katta (maksimum 10MB)' 
+            error: 'Biror fayl hajmi juda katta (maksimum 10MB)' 
+          });
+        }
+        
+        if (err.code === 'LIMIT_FILE_COUNT') {
+          return res.status(413).json({ 
+            error: `Fayllar soni juda ko'p (maksimum ${MAX_FILES} ta)` 
           });
         }
         
         return res.status(500).json({ error: 'Yuklashda xatolik yuz berdi' });
       }
 
-      const file = files.file;
-      if (!file) {
+      let uploadedFiles = files.file;
+      if (!uploadedFiles) {
         return res.status(400).json({ error: 'Hech qanday fayl yuklanmadi' });
       }
 
-      try {
-        // Fayl massivdan birinchisini olish
-        const fileArray = Array.isArray(file) ? file[0] : file;
-        const originalName = fileArray.originalFilename || 'unknown';
-        const mimetype = fileArray.mimetype;
-        const fileSize = fileArray.size;
-
-        // Fayl turini tekshirish
-        if (!isFileTypeAllowed(originalName, mimetype)) {
-          // Vaqtinchalik faylni o'chirish
-          fs.unlinkSync(fileArray.filepath);
-          return res.status(400).json({ 
-            error: 'Ushbu fayl turi ruxsat berilmagan',
-            allowedTypes: 'Rasm, video, hujjat, audio va arxiv fayllari'
-          });
-        }
-
-        // Fayl o'lchamini qo'shimcha tekshirish
-        if (fileSize > MAX_FILE_SIZE) {
-          fs.unlinkSync(fileArray.filepath);
-          return res.status(413).json({ 
-            error: 'Fayl hajmi juda katta (maksimum 10MB)' 
-          });
-        }
-
-        // Maydonlardan ma'lumotlarni olish
-        const type = Array.isArray(fields.type) ? fields.type[0] : fields.type;
-        const username = Array.isArray(fields.username) ? fields.username[0] : fields.username;
-        const postIndex = Array.isArray(fields.postIndex) ? fields.postIndex[0] : fields.postIndex;
-
-        // Fayl nomini xavfsiz qilish
-        const safeOriginalName = sanitizeFilename(originalName);
-        const fileExtension = path.extname(safeOriginalName);
-
-        // Noyob fayl nomi yaratish
-        const timestamp = Date.now();
-        const randomString = Math.random().toString(36).substring(2, 8);
-        
-        let fileName;
-        let folderPath;
-        
-        if (type === 'profile') {
-          folderPath = 'profiles';
-          fileName = `${username}_${timestamp}_${randomString}${fileExtension}`;
-        } else {
-          folderPath = 'posts';
-          fileName = `${username}_${postIndex}_${timestamp}_${randomString}${fileExtension}`;
-        }
-
-        // To'liq fayl yo'li
-        const filePath = `${folderPath}/${fileName}`;
-
-        // Faylni o'qish
-        const fileBuffer = fs.readFileSync(fileArray.filepath);
-
-        // Supabase Storage ga yuklash
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from(BUCKET_NAME)
-          .upload(filePath, fileBuffer, {
-            contentType: mimetype,
-            upsert: false, // Mavjud faylni qayta yozmaslik
-          });
-
-        // Vaqtinchalik faylni o'chirish
-        fs.unlinkSync(fileArray.filepath);
-
-        if (uploadError) {
-          console.error('Supabase upload error:', uploadError);
-          return res.status(500).json({ 
-            error: 'Faylni saqlashda xatolik',
-            details: uploadError.message 
-          });
-        }
-
-        // Public URL olish
-        const { data: urlData } = supabase.storage
-          .from(BUCKET_NAME)
-          .getPublicUrl(filePath);
-
-        const publicUrl = urlData.publicUrl;
-
-        // Javobni qaytarish
-        res.status(200).json({ 
-          success: true, 
-          url: publicUrl,
-          filename: fileName,
-          originalName: originalName,
-          fileSize: fileSize,
-          mimeType: mimetype,
-          path: filePath,
-          bucket: BUCKET_NAME
-        });
-
-      } catch (fileError) {
-        console.error('File processing error:', fileError);
-        
-        // Vaqtinchalik faylni o'chirish (agar mavjud bo'lsa)
-        try {
-          const fileArray = Array.isArray(file) ? file[0] : file;
-          if (fs.existsSync(fileArray.filepath)) {
-            fs.unlinkSync(fileArray.filepath);
-          }
-        } catch (cleanupError) {
-          console.warn('Cleanup error:', cleanupError);
-        }
-        
-        res.status(500).json({ error: 'Faylni qayta ishlashda xatolik' });
+      // Agar bitta fayl bo'lsa, uni massivga aylantirish
+      if (!Array.isArray(uploadedFiles)) {
+        uploadedFiles = [uploadedFiles];
       }
+
+      // Fayllar sonini tekshirish
+      if (uploadedFiles.length > MAX_FILES) {
+        // Vaqtinchalik fayllarni o'chirish
+        uploadedFiles.forEach(file => fs.unlinkSync(file.filepath));
+        return res.status(400).json({ 
+          error: `Fayllar soni juda ko'p (maksimum ${MAX_FILES} ta)` 
+        });
+      }
+
+      const results = [];
+      const errors = [];
+      let hasError = false;
+
+      // Maydonlardan ma'lumotlarni olish (barcha fayllar uchun umumiy)
+      const type = Array.isArray(fields.type) ? fields.type[0] : fields.type;
+      const username = Array.isArray(fields.username) ? fields.username[0] : fields.username;
+      const postIndex = Array.isArray(fields.postIndex) ? fields.postIndex[0] : fields.postIndex;
+
+      // Har bir faylni qayta ishlash
+      for (const file of uploadedFiles) {
+        try {
+          const originalName = file.originalFilename || 'unknown';
+          const mimetype = file.mimetype;
+          const fileSize = file.size;
+
+          // Fayl turini tekshirish
+          if (!isFileTypeAllowed(originalName, mimetype)) {
+            fs.unlinkSync(file.filepath);
+            errors.push({ 
+              filename: originalName, 
+              error: 'Ushbu fayl turi ruxsat berilmagan' 
+            });
+            continue;
+          }
+
+          // Fayl o'lchamini tekshirish
+          if (fileSize > MAX_FILE_SIZE) {
+            fs.unlinkSync(file.filepath);
+            errors.push({ 
+              filename: originalName, 
+              error: 'Fayl hajmi juda katta (maksimum 10MB)' 
+            });
+            continue;
+          }
+
+          // Fayl nomini xavfsiz qilish
+          const safeOriginalName = sanitizeFilename(originalName);
+          const fileExtension = path.extname(safeOriginalName);
+
+          // Noyob fayl nomi yaratish
+          const timestamp = Date.now();
+          const randomString = Math.random().toString(36).substring(2, 8);
+          
+          let fileName;
+          let folderPath;
+          
+          if (type === 'profile') {
+            folderPath = 'profiles';
+            fileName = `${username}_${timestamp}_${randomString}${fileExtension}`;
+          } else {
+            folderPath = 'posts';
+            fileName = `${username}_${postIndex}_${timestamp}_${randomString}${fileExtension}`;
+          }
+
+          // To'liq fayl yo'li
+          const filePath = `${folderPath}/${fileName}`;
+
+          // Faylni o'qish
+          const fileBuffer = fs.readFileSync(file.filepath);
+
+          // Supabase Storage ga yuklash
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from(BUCKET_NAME)
+            .upload(filePath, fileBuffer, {
+              contentType: mimetype,
+              upsert: false, // Mavjud faylni qayta yozmaslik
+            });
+
+          // Vaqtinchalik faylni o'chirish
+          fs.unlinkSync(file.filepath);
+
+          if (uploadError) {
+            console.error('Supabase upload error for file', originalName, ':', uploadError);
+            errors.push({ 
+              filename: originalName, 
+              error: 'Faylni saqlashda xatolik' 
+            });
+            continue;
+          }
+
+          // Public URL olish
+          const { data: urlData } = supabase.storage
+            .from(BUCKET_NAME)
+            .getPublicUrl(filePath);
+
+          const publicUrl = urlData.publicUrl;
+
+          // Natijani qo'shish
+          results.push({
+            success: true,
+            url: publicUrl,
+            filename: fileName,
+            originalName: originalName,
+            fileSize: fileSize,
+            mimeType: mimetype,
+            path: filePath,
+            bucket: BUCKET_NAME
+          });
+
+        } catch (fileError) {
+          console.error('File processing error for', file.originalFilename, ':', fileError);
+          errors.push({ 
+            filename: file.originalFilename || 'unknown', 
+            error: 'Faylni qayta ishlashda xatolik' 
+          });
+
+          // Vaqtinchalik faylni o'chirish (agar mavjud bo'lsa)
+          if (fs.existsSync(file.filepath)) {
+            fs.unlinkSync(file.filepath);
+          }
+        }
+      }
+
+      // Agar xatolar bo'lsa, hasError ni true qilish
+      if (errors.length > 0) {
+        hasError = true;
+      }
+
+      // Javobni qaytarish
+      res.status(hasError ? 207 : 200).json({ 
+        success: !hasError,
+        uploaded: results,
+        errors: errors
+      });
     });
 
   } catch (error) {
