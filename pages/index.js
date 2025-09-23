@@ -1365,7 +1365,7 @@ export default function Home() {
         });
 
         // File size validation function
-        function validateFileSize(file, maxSizeMB = 50) {
+        function validateFileSize(file, maxSizeMB = 150) {
             const maxSizeBytes = maxSizeMB * 1024 * 1024;
             if (file.size > maxSizeBytes) {
                 throw new Error(\`\${file.name} fayli juda katta (\${(file.size / (1024*1024)).toFixed(1)}MB). Maksimal ruxsat etilgan hajm: \${maxSizeMB}MB\`);
@@ -1387,7 +1387,6 @@ export default function Home() {
                 if (Array.isArray(files)) {
                     files.forEach(file => {
                         try {
-                            validateFileSize(file, 100); // 100MB limit for posts
                             validateFileType(file);
                             formData.append('file', file);
                         } catch (error) {
@@ -1397,7 +1396,6 @@ export default function Home() {
                     });
                 } else {
                     try {
-                        validateFileSize(files, 10); // 10MB limit for profile pics
                         validateFileType(files, ['image/jpeg', 'image/png', 'image/gif']);
                         formData.append('file', files);
                     } catch (error) {
