@@ -5,6 +5,10 @@ import { existsSync } from 'fs';
 import path from 'path';
 import os from 'os';
 import B2 from 'backblaze-b2';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 // Supabase sozlamalari
 const SUPABASE_URL = 'https://xzbwfoacsnrmgjmildcr.supabase.co';
@@ -23,6 +27,131 @@ let b2 = null;
 let isB2Initialized = false;
 let bucketId = null;
 let downloadUrl = null;
+
+// Video formatlarini aniqlash
+const VIDEO_FORMATS = [
+  'video/mp4', 'video/avi', 'video/mov', 'video/wmv', 'video/flv', 
+  'video/webm', 'video/mkv', 'video/3gp', 'video/m4v', 'video/quicktime'
+];
+
+// Video kompressiya sozlamalari
+const VIDEO_COMPRESSION_SETTINGS = {
+  resolution: '720x480', // 420p ga yaqin
+  videoBitrate: '800k',   // Video bitrate
+  audioBitrate: '128k',   // Audio bitrate
+  fps: 30,                // FPS
+  codec: 'libx264',       // Video kodek
+  audioCodec: 'aac',      // Audio kodek
+  preset: 'fast',         // Encoding tezligi
+  crf: 28                 // Quality (18-28 oralig'ida, katta raqam - kichik hajm)
+};
+
+// FFmpeg mavjudligini tekshirish
+async function checkFFmpegAvailability() {
+  try {
+    const { stdout } = await execAsync('ffmpeg -version');
+    if (stdout.includes('ffmpeg version')) {
+      console.log('✅ FFmpeg mavjud');
+      return true;
+    }
+  } catch (error) {
+    console.log('❌ FFmpeg topilmadi, video kompressiya o\'chiriladi');
+    return false;
+  }
+  return false;
+}
+
+// Video faylni siqish
+async function compressVideo(inputPath, outputPath, mimeType) {
+  try {
+    console.log('🎬 Video kompressiya boshlanmoqda...');
+    console.log('📥 Input:', inputPath);
+    console.log('📤 Output:', outputPath);
+
+    // FFmpeg buyrug'ini tuzish
+    const ffmpegCommand = [
+      'ffmpeg',
+      '-i', `"${inputPath}"`,                                    // Input fayl
+      '-c:v', VIDEO_COMPRESSION_SETTINGS.codec,                 // Video kodek
+      '-c:a', VIDEO_COMPRESSION_SETTINGS.audioCodec,            // Audio kodek
+      '-b:v', VIDEO_COMPRESSION_SETTINGS.videoBitrate,          // Video bitrate
+      '-b:a', VIDEO_COMPRESSION_SETTINGS.audioBitrate,          // Audio bitrate
+      '-r', VIDEO_COMPRESSION_SETTINGS.fps,                     // FPS
+      '-crf', VIDEO_COMPRESSION_SETTINGS.crf,                   // Quality
+      '-preset', VIDEO_COMPRESSION_SETTINGS.preset,             // Encoding preset
+      '-vf', `scale=${VIDEO_COMPRESSION_SETTINGS.resolution}:force_original_aspect_ratio=decrease,pad=${VIDEO_COMPRESSION_SETTINGS.resolution}:(ow-iw)/2:(oh-ih)/2`, // Resolution va padding
+      '-movflags', '+faststart',                                 // Web uchun optimizatsiya
+      '-y',                                                      // Overwrite
+      `"${outputPath}"`                                          // Output fayl
+    ].join(' ');
+
+    console.log('🔄 FFmpeg buyrug\'i:', ffmpegCommand.substring(0, 100) + '...');
+
+    // Kompressiya vaqtini o'lchash
+    const startTime = Date.now();
+    
+    const { stdout, stderr } = await execAsync(ffmpegCommand, {
+      timeout: 300000, // 5 daqiqa timeout
+      maxBuffer: 1024 * 1024 * 10 // 10MB buffer
+    });
+
+    const endTime = Date.now();
+    const duration = ((endTime - startTime) / 1000).toFixed(2);
+
+    // Natijalarni tekshirish
+    if (existsSync(outputPath)) {
+      const originalStats = await fs.stat(inputPath);
+      const compressedStats = await fs.stat(outputPath);
+      
+      const originalSize = originalStats.size;
+      const compressedSize = compressedStats.size;
+      const compressionRatio = ((originalSize - compressedSize) / originalSize * 100).toFixed(2);
+
+      console.log('✅ Video kompressiya tugadi');
+      console.log(`📊 Asl hajm: ${(originalSize / 1024 / 1024).toFixed(2)}MB`);
+      console.log(`📊 Yangi hajm: ${(compressedSize / 1024 / 1024).toFixed(2)}MB`);
+      console.log(`📊 Tejash: ${compressionRatio}%`);
+      console.log(`⏱️ Vaqt: ${duration}s`);
+
+      return {
+        success: true,
+        originalSize,
+        compressedSize,
+        compressionRatio: parseFloat(compressionRatio),
+        duration: parseFloat(duration)
+      };
+    } else {
+      throw new Error('Kompressiya natijasida fayl yaratilmadi');
+    }
+
+  } catch (error) {
+    console.error('❌ Video kompressiya xatosi:', error.message);
+    
+    // Agar FFmpeg xatosi bo'lsa, asl faylni qaytarish
+    if (error.message.includes('timeout') || error.message.includes('ffmpeg')) {
+      console.log('⚠️ Kompressiya muvaffaqiyatsiz, asl fayl ishlatiladi');
+      return {
+        success: false,
+        error: error.message,
+        useOriginal: true
+      };
+    }
+    
+    throw error;
+  }
+}
+
+// Video fayl ekanligini aniqlash
+function isVideoFile(mimeType, filename) {
+  if (mimeType && VIDEO_FORMATS.includes(mimeType.toLowerCase())) {
+    return true;
+  }
+  
+  // Fayl nomidan ham tekshirish
+  const videoExtensions = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm', '.mkv', '.3gp', '.m4v'];
+  const extension = path.extname(filename).toLowerCase();
+  return videoExtensions.includes(extension);
+}
 
 // Backblaze ni ishga tushirish
 async function initializeB2() {
@@ -194,6 +323,7 @@ async function cleanupTempFile(filePath) {
 export const config = {
   api: {
     bodyParser: false,
+    responseLimit: false, // Katta fayllar uchun javob cheklovini olib tashlash
   },
 };
 
@@ -204,6 +334,9 @@ export default async function handler(req, res) {
       method: req.method 
     });
   }
+
+  // FFmpeg mavjudligini tekshirish
+  const isFFmpegAvailable = await checkFFmpegAvailability();
 
   try {
     console.log('🚀 Starting upload process...');
@@ -232,17 +365,18 @@ export default async function handler(req, res) {
       }
     }
     
-    // Formidable sozlamalari
+    // Formidable sozlamalari - barcha hajm cheklovlarini olib tashlash
     const form = formidable({
       multiples: true,
       uploadDir: tempDir,
       keepExtensions: true,
       allowEmptyFiles: false,
       minFileSize: 1,
-      maxFileSize: 100 * 1024 * 1024, // 100 MB har fayl uchun
-      maxFiles: 5,
-      maxTotalFileSize: 500 * 1024 * 1024, // Jami 500MB
-      maxFieldsSize: 10 * 1024 * 1024, // 10MB field data
+      // Barcha hajm cheklovlarini olib tashladik
+      maxFileSize: Infinity, // Cheksiz fayl hajmi
+      maxFiles: Infinity,    // Cheksiz fayl soni  
+      maxTotalFileSize: Infinity, // Cheksiz jami hajm
+      maxFieldsSize: Infinity,    // Cheksiz field hajmi
       createDirsFromUploads: true, // Papkani avtomatik yaratish
     });
 
@@ -273,22 +407,8 @@ export default async function handler(req, res) {
 
     const uploadedFiles = Array.isArray(files.file) ? files.file : [files.file];
     
-    // Fayllar sonini tekshirish
-    if (uploadedFiles.length > 5) {
-      return res.status(400).json({ 
-        error: 'Maksimal 5 ta fayl yuklash mumkin',
-        received: uploadedFiles.length 
-      });
-    }
-
-    // Jami hajmni tekshirish
+    // Jami hajmni hisoblash (faqat ma'lumot uchun, cheklash uchun emas)
     const totalSize = uploadedFiles.reduce((sum, file) => sum + (file.size || 0), 0);
-    if (totalSize > 500 * 1024 * 1024) {
-      return res.status(400).json({ 
-        error: 'Jami fayllar hajmi 500MB dan oshmasin',
-        totalSize: `${(totalSize / 1024 / 1024).toFixed(2)}MB`
-      });
-    }
 
     // Fields ni olish
     const type = Array.isArray(fields.type) ? fields.type[0] : (fields.type || 'post');
@@ -303,6 +423,8 @@ export default async function handler(req, res) {
     }
 
     console.log(`📊 Upload session: type=${type}, username=${username}, files=${uploadedFiles.length}`);
+    console.log(`📊 Total size: ${(totalSize / 1024 / 1024 / 1024).toFixed(2)} GB`);
+    console.log(`🎬 Video compression: ${isFFmpegAvailable ? 'ENABLED' : 'DISABLED'}`);
 
     const results = [];
     const errors = [];
@@ -311,6 +433,7 @@ export default async function handler(req, res) {
     for (let i = 0; i < uploadedFiles.length; i++) {
       const file = uploadedFiles[i];
       let tempFilePath = null;
+      let compressedFilePath = null;
       
       try {
         const originalName = file.originalFilename || `file_${i + 1}`;
@@ -321,11 +444,7 @@ export default async function handler(req, res) {
         console.log(`📤 Processing ${i + 1}/${uploadedFiles.length}: ${originalName}`);
         console.log(`📊 Size: ${(fileSize / 1024 / 1024).toFixed(2)}MB, Type: ${mimeType}`);
 
-        // Fayl hajmini tekshirish
-        if (fileSize > 100 * 1024 * 1024) {
-          throw new Error(`Fayl hajmi 100MB dan katta: ${(fileSize / 1024 / 1024).toFixed(2)}MB`);
-        }
-
+        // Faqat bo'sh fayl tekshirish qoldik
         if (fileSize === 0) {
           throw new Error('Bo\'sh fayl');
         }
@@ -351,14 +470,37 @@ export default async function handler(req, res) {
           throw new Error('Bo\'sh fayl');
         }
 
-        // Reported va actual size farqini tekshirish
-        if (fileSize > 0 && Math.abs(fileSize - actualFileSize) > 1000) {
-          console.warn(`⚠️ File size mismatch: reported=${fileSize}, actual=${actualFileSize}`);
+        // Video fayl ekanligini aniqlash va siqish
+        let finalFilePath = tempFilePath;
+        let finalFileSize = actualFileSize;
+        let compressionInfo = null;
+
+        if (isFFmpegAvailable && isVideoFile(mimeType, originalName)) {
+          console.log('🎬 Video fayl aniqlandi, kompressiya boshlanmoqda...');
+          
+          // Kompressiya uchun yangi fayl yo'li
+          const compressedName = `compressed_${Date.now()}_${path.basename(tempFilePath, path.extname(tempFilePath))}.mp4`;
+          compressedFilePath = path.join(tempDir, compressedName);
+          
+          try {
+            compressionInfo = await compressVideo(tempFilePath, compressedFilePath, mimeType);
+            
+            if (compressionInfo.success) {
+              finalFilePath = compressedFilePath;
+              finalFileSize = compressionInfo.compressedSize;
+              console.log(`✅ Video kompressiya muvaffaqiyatli: ${compressionInfo.compressionRatio}% tejash`);
+            } else if (compressionInfo.useOriginal) {
+              console.log('⚠️ Kompressiya ishlamadi, asl fayl ishlatiladi');
+            }
+          } catch (compressionError) {
+            console.error('❌ Video kompressiya xatosi:', compressionError.message);
+            console.log('⚠️ Asl fayl ishlatiladi');
+          }
         }
 
         // Fayl nomini yaratish
         const safeOriginalName = sanitizeFilename(originalName);
-        const fileExtension = path.extname(safeOriginalName) || '';
+        const fileExtension = compressionInfo?.success ? '.mp4' : path.extname(safeOriginalName) || '';
         const timestamp = Date.now();
         const randomId = Math.random().toString(36).substring(2, 8);
 
@@ -374,7 +516,7 @@ export default async function handler(req, res) {
         console.log(`🎯 Destination: ${fileName}`);
 
         // Faylni yuklash
-        const uploadResult = await uploadFileToB2(tempFilePath, fileName, mimeType);
+        const uploadResult = await uploadFileToB2(finalFilePath, fileName, compressionInfo?.success ? 'video/mp4' : mimeType);
         
         // Umumiy URL yaratish
         const publicUrl = createPublicUrl(fileName);
@@ -384,12 +526,16 @@ export default async function handler(req, res) {
           url: publicUrl,
           filename: uploadResult.fileName,
           originalName: originalName,
-          fileSize: fileSize,
-          mimeType: mimeType,
+          fileSize: finalFileSize,
+          originalFileSize: actualFileSize,
+          mimeType: compressionInfo?.success ? 'video/mp4' : mimeType,
           bucket: BUCKET_NAME,
           type: type,
           fileIndex: i + 1,
           totalFiles: uploadedFiles.length,
+          compressed: compressionInfo?.success || false,
+          compressionRatio: compressionInfo?.compressionRatio || null,
+          compressionDuration: compressionInfo?.duration || null,
         });
 
         console.log(`✅ Success ${i + 1}/${uploadedFiles.length}: ${originalName}`);
@@ -402,9 +548,12 @@ export default async function handler(req, res) {
           fileIndex: i + 1 
         });
       } finally {
-        // Vaqtinchalik faylni o'chirish
+        // Vaqtinchalik fayllarni o'chirish
         if (tempFilePath) {
           await cleanupTempFile(tempFilePath);
+        }
+        if (compressedFilePath && compressedFilePath !== tempFilePath) {
+          await cleanupTempFile(compressedFilePath);
         }
       }
     }
@@ -418,7 +567,11 @@ export default async function handler(req, res) {
         totalFiles: uploadedFiles.length,
         successful: results.length,
         failed: errors.length,
-        totalSize: `${(totalSize / 1024 / 1024).toFixed(2)}MB`,
+        totalSize: totalSize < 1024 * 1024 * 1024 
+          ? `${(totalSize / 1024 / 1024).toFixed(2)}MB`
+          : `${(totalSize / 1024 / 1024 / 1024).toFixed(2)}GB`,
+        videosCompressed: results.filter(r => r.compressed).length,
+        ffmpegAvailable: isFFmpegAvailable,
       },
     };
 
