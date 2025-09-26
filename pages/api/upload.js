@@ -18,6 +18,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // Catbox.moe sozlamalari - fayl ichida saqlangan
 const CATBOX_USER_HASH = 'f5b7fa9dcde44f181587045cf';
 const CATBOX_API_URL = 'https://catbox.moe/user/api.php';
+const CATBOX_MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB Catbox.moe cheklovi
 
 // Video formatlarini aniqlash
 const VIDEO_FORMATS = [
@@ -59,17 +60,29 @@ async function compressVideo(inputPath, outputPath, mimeType) {
     console.log('📥 Input:', inputPath);
     console.log('📤 Output:', outputPath);
 
+    const fileStats = await fs.stat(inputPath);
+    const originalSize = fileStats.size;
+
+    // Agar fayl 200MB dan katta bo‘lsa, siqishni qattiqroq qilish
+    const isLargeFile = originalSize > CATBOX_MAX_FILE_SIZE;
+    const adjustedSettings = {
+      ...VIDEO_COMPRESSION_SETTINGS,
+      videoBitrate: isLargeFile ? '500k' : VIDEO_COMPRESSION_SETTINGS.videoBitrate,
+      crf: isLargeFile ? 30 : VIDEO_COMPRESSION_SETTINGS.crf,
+      resolution: isLargeFile ? '640x360' : VIDEO_COMPRESSION_SETTINGS.resolution
+    };
+
     const ffmpegCommand = [
       'ffmpeg',
       '-i', `"${inputPath}"`,
-      '-c:v', VIDEO_COMPRESSION_SETTINGS.codec,
-      '-c:a', VIDEO_COMPRESSION_SETTINGS.audioCodec,
-      '-b:v', VIDEO_COMPRESSION_SETTINGS.videoBitrate,
-      '-b:a', VIDEO_COMPRESSION_SETTINGS.audioBitrate,
-      '-r', VIDEO_COMPRESSION_SETTINGS.fps,
-      '-crf', VIDEO_COMPRESSION_SETTINGS.crf,
-      '-preset', VIDEO_COMPRESSION_SETTINGS.preset,
-      '-vf', `scale=${VIDEO_COMPRESSION_SETTINGS.resolution}:force_original_aspect_ratio=decrease,pad=${VIDEO_COMPRESSION_SETTINGS.resolution}:(ow-iw)/2:(oh-ih)/2`,
+      '-c:v', adjustedSettings.codec,
+      '-c:a', adjustedSettings.audioCodec,
+      '-b:v', adjustedSettings.videoBitrate,
+      '-b:a', adjustedSettings.audioBitrate,
+      '-r', adjustedSettings.fps,
+      '-crf', adjustedSettings.crf,
+      '-preset', adjustedSettings.preset,
+      '-vf', `scale=${adjustedSettings.resolution}:force_original_aspect_ratio=decrease,pad=${adjustedSettings.resolution}:(ow-iw)/2:(oh-ih)/2`,
       '-movflags', '+faststart',
       '-y',
       `"${outputPath}"`
@@ -86,11 +99,13 @@ async function compressVideo(inputPath, outputPath, mimeType) {
     const duration = ((endTime - startTime) / 1000).toFixed(2);
 
     if (existsSync(outputPath)) {
-      const originalStats = await fs.stat(inputPath);
       const compressedStats = await fs.stat(outputPath);
-      
-      const originalSize = originalStats.size;
       const compressedSize = compressedStats.size;
+      
+      if (compressedSize > CATBOX_MAX_FILE_SIZE) {
+        throw new Error('Siqilgan video hali ham 200MB dan katta');
+      }
+
       const compressionRatio = ((originalSize - compressedSize) / originalSize * 100).toFixed(2);
 
       console.log('✅ Video kompressiya tugadi');
@@ -158,9 +173,9 @@ async function uploadFileToCatbox(filePath, fileName, mimeType) {
     const fileSizeMB = (fileBuffer.length / 1024 / 1024).toFixed(2);
     console.log('📁 File size:', fileSizeMB, 'MB');
 
-    // Katta fayllar uchun warning (Catbox max 200MB, ammo user 1GB so'ragan, lekin cheklash kodda qo'yiladi)
-    if (fileBuffer.length > 200 * 1024 * 1024) { // 200MB Catbox limit
-      throw new Error('Fayl hajmi Catbox.moe uchun juda katta (max 200MB)');
+    // Catbox.moe fayl hajmi cheklovi
+    if (fileBuffer.length > CATBOX_MAX_FILE_SIZE) {
+      throw new Error(`Fayl hajmi Catbox.moe uchun juda katta (${fileSizeMB}MB, max 200MB)`);
     }
 
     const form = new FormData();
@@ -379,13 +394,21 @@ export default async function handler(req, res) {
               finalFilePath = compressedFilePath;
               finalFileSize = compressionInfo.compressedSize;
               console.log(`✅ Video kompressiya muvaffaqiyatli: ${compressionInfo.compressionRatio}% tejash`);
-            } else if (compressionInfo.useOriginal) {
+            } else if (compressionInfo.useOriginal && actualFileSize <= CATBOX_MAX_FILE_SIZE) {
               console.log('⚠️ Kompressiya ishlamadi, asl fayl ishlatiladi');
+            } else {
+              throw new Error('Video faylni siqish muvaffaqiyatsiz va hajmi 200MB dan katta');
             }
           } catch (compressionError) {
             console.error('❌ Video kompressiya xatosi:', compressionError.message);
-            console.log('⚠️ Asl fayl ishlatiladi');
+            if (actualFileSize <= CATBOX_MAX_FILE_SIZE) {
+              console.log('⚠️ Asl fayl ishlatiladi');
+            } else {
+              throw new Error('Video faylni siqish muvaffaqiyatsiz va hajmi 200MB dan katta');
+            }
           }
+        } else if (isVideoFile(mimeType, originalName) && !isFFmpegAvailable && actualFileSize > CATBOX_MAX_FILE_SIZE) {
+          throw new Error('Video fayl 200MB dan katta va FFmpeg mavjud emas');
         }
 
         // Fayl nomini yaratish
@@ -483,4 +506,4 @@ export default async function handler(req, res) {
       }
     });
   }
-} 
+}
