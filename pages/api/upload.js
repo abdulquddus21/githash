@@ -4,9 +4,10 @@ import fs from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
 import os from 'os';
-import B2 from 'backblaze-b2';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import axios from 'axios';
+import FormData from 'form-data';
 
 const execAsync = promisify(exec);
 
@@ -14,19 +15,9 @@ const execAsync = promisify(exec);
 const SUPABASE_URL = 'https://xzbwfoacsnrmgjmildcr.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh6Yndmb2Fjc25ybWdqbWlsZGNyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxOTkxNzUsImV4cCI6MjA3Mzc3NTE3NX0.c10rEbuzQIkVvuJEecEltokgaj6AqjyP5IoFVffjizc';
 
-// Backblaze sozlamalari
-const BACKBLAZE_KEY_ID = process.env.BACKBLAZE_KEY_ID;
-const BACKBLAZE_APP_KEY = process.env.BACKBLAZE_APP_KEY;
-const BUCKET_NAME = process.env.BUCKET_NAME;
-
-// Supabase client
-const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-// Backblaze client
-let b2 = null;
-let isB2Initialized = false;
-let bucketId = null;
-let downloadUrl = null;
+// Catbox.moe sozlamalari - fayl ichida saqlangan
+const CATBOX_USER_HASH = 'f5b7fa9dcde44f181587045cf';
+const CATBOX_API_URL = 'https://catbox.moe/user/api.php';
 
 // Video formatlarini aniqlash
 const VIDEO_FORMATS = [
@@ -36,14 +27,14 @@ const VIDEO_FORMATS = [
 
 // Video kompressiya sozlamalari
 const VIDEO_COMPRESSION_SETTINGS = {
-  resolution: '720x480', // 420p ga yaqin
-  videoBitrate: '800k',   // Video bitrate
-  audioBitrate: '128k',   // Audio bitrate
-  fps: 30,                // FPS
-  codec: 'libx264',       // Video kodek
-  audioCodec: 'aac',      // Audio kodek
-  preset: 'fast',         // Encoding tezligi
-  crf: 28                 // Quality (18-28 oralig'ida, katta raqam - kichik hajm)
+  resolution: '720x480',
+  videoBitrate: '800k',
+  audioBitrate: '128k',
+  fps: 30,
+  codec: 'libx264',
+  audioCodec: 'aac',
+  preset: 'fast',
+  crf: 28
 };
 
 // FFmpeg mavjudligini tekshirish
@@ -68,37 +59,32 @@ async function compressVideo(inputPath, outputPath, mimeType) {
     console.log('📥 Input:', inputPath);
     console.log('📤 Output:', outputPath);
 
-    // FFmpeg buyrug'ini tuzish
     const ffmpegCommand = [
       'ffmpeg',
-      '-i', `"${inputPath}"`,                                    // Input fayl
-      '-c:v', VIDEO_COMPRESSION_SETTINGS.codec,                 // Video kodek
-      '-c:a', VIDEO_COMPRESSION_SETTINGS.audioCodec,            // Audio kodek
-      '-b:v', VIDEO_COMPRESSION_SETTINGS.videoBitrate,          // Video bitrate
-      '-b:a', VIDEO_COMPRESSION_SETTINGS.audioBitrate,          // Audio bitrate
-      '-r', VIDEO_COMPRESSION_SETTINGS.fps,                     // FPS
-      '-crf', VIDEO_COMPRESSION_SETTINGS.crf,                   // Quality
-      '-preset', VIDEO_COMPRESSION_SETTINGS.preset,             // Encoding preset
-      '-vf', `scale=${VIDEO_COMPRESSION_SETTINGS.resolution}:force_original_aspect_ratio=decrease,pad=${VIDEO_COMPRESSION_SETTINGS.resolution}:(ow-iw)/2:(oh-ih)/2`, // Resolution va padding
-      '-movflags', '+faststart',                                 // Web uchun optimizatsiya
-      '-y',                                                      // Overwrite
-      `"${outputPath}"`                                          // Output fayl
+      '-i', `"${inputPath}"`,
+      '-c:v', VIDEO_COMPRESSION_SETTINGS.codec,
+      '-c:a', VIDEO_COMPRESSION_SETTINGS.audioCodec,
+      '-b:v', VIDEO_COMPRESSION_SETTINGS.videoBitrate,
+      '-b:a', VIDEO_COMPRESSION_SETTINGS.audioBitrate,
+      '-r', VIDEO_COMPRESSION_SETTINGS.fps,
+      '-crf', VIDEO_COMPRESSION_SETTINGS.crf,
+      '-preset', VIDEO_COMPRESSION_SETTINGS.preset,
+      '-vf', `scale=${VIDEO_COMPRESSION_SETTINGS.resolution}:force_original_aspect_ratio=decrease,pad=${VIDEO_COMPRESSION_SETTINGS.resolution}:(ow-iw)/2:(oh-ih)/2`,
+      '-movflags', '+faststart',
+      '-y',
+      `"${outputPath}"`
     ].join(' ');
 
-    console.log('🔄 FFmpeg buyrug\'i:', ffmpegCommand.substring(0, 100) + '...');
-
-    // Kompressiya vaqtini o'lchash
     const startTime = Date.now();
     
     const { stdout, stderr } = await execAsync(ffmpegCommand, {
-      timeout: 300000, // 5 daqiqa timeout
-      maxBuffer: 1024 * 1024 * 10 // 10MB buffer
+      timeout: 300000,
+      maxBuffer: 1024 * 1024 * 10
     });
 
     const endTime = Date.now();
     const duration = ((endTime - startTime) / 1000).toFixed(2);
 
-    // Natijalarni tekshirish
     if (existsSync(outputPath)) {
       const originalStats = await fs.stat(inputPath);
       const compressedStats = await fs.stat(outputPath);
@@ -127,7 +113,6 @@ async function compressVideo(inputPath, outputPath, mimeType) {
   } catch (error) {
     console.error('❌ Video kompressiya xatosi:', error.message);
     
-    // Agar FFmpeg xatosi bo'lsa, asl faylni qaytarish
     if (error.message.includes('timeout') || error.message.includes('ffmpeg')) {
       console.log('⚠️ Kompressiya muvaffaqiyatsiz, asl fayl ishlatiladi');
       return {
@@ -147,91 +132,9 @@ function isVideoFile(mimeType, filename) {
     return true;
   }
   
-  // Fayl nomidan ham tekshirish
   const videoExtensions = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm', '.mkv', '.3gp', '.m4v'];
   const extension = path.extname(filename).toLowerCase();
   return videoExtensions.includes(extension);
-}
-
-// Backblaze ni ishga tushirish
-async function initializeB2() {
-  try {
-    if (isB2Initialized && b2 && bucketId && downloadUrl) {
-      console.log('✅ B2 already initialized');
-      return true;
-    }
-
-    // Environment variables ni tekshirish
-    if (!BACKBLAZE_KEY_ID || !BACKBLAZE_APP_KEY || !BUCKET_NAME) {
-      throw new Error('Backblaze sozlamalari .env.local faylida to\'liq emas');
-    }
-
-    console.log('🔄 Initializing Backblaze B2...');
-    console.log('Key ID:', BACKBLAZE_KEY_ID.substring(0, 10) + '...');
-    console.log('Bucket:', BUCKET_NAME);
-
-    // B2 client yaratish
-    b2 = new B2({
-      applicationKeyId: BACKBLAZE_KEY_ID,
-      applicationKey: BACKBLAZE_APP_KEY,
-    });
-
-    // Autorizatsiya
-    console.log('🔐 Authorizing with Backblaze...');
-    const authResponse = await b2.authorize();
-
-    if (!authResponse?.data) {
-      throw new Error('Authorization javob bo\'sh');
-    }
-
-    downloadUrl = authResponse.data.downloadUrl;
-    console.log('✅ Authorization successful');
-
-    // Bucket topish
-    console.log('🗂️ Finding bucket...');
-    const bucketsResponse = await b2.listBuckets();
-    
-    if (!bucketsResponse?.data?.buckets) {
-      throw new Error('Buckets ro\'yxati olinmadi');
-    }
-
-    const bucket = bucketsResponse.data.buckets.find(b => b.bucketName === BUCKET_NAME);
-    
-    if (!bucket) {
-      throw new Error(`Bucket "${BUCKET_NAME}" topilmadi. Mavjud bucketlar: ${bucketsResponse.data.buckets.map(b => b.bucketName).join(', ')}`);
-    }
-
-    bucketId = bucket.bucketId;
-    isB2Initialized = true;
-
-    console.log('✅ Bucket topildi:', bucket.bucketName);
-    console.log('✅ Bucket ID:', bucketId);
-    console.log('✅ Download URL:', downloadUrl.substring(0, 30) + '...');
-
-    return true;
-
-  } catch (error) {
-    console.error('❌ Backblaze initialization xatosi:');
-    console.error('Message:', error.message);
-    console.error('Status:', error.response?.status);
-    console.error('Response:', error.response?.data);
-
-    // Reset qilish
-    b2 = null;
-    isB2Initialized = false;
-    bucketId = null;
-    downloadUrl = null;
-
-    if (error.response?.status === 401) {
-      throw new Error('❌ Backblaze kalitlari noto\'g\'ri! Yangi Application Key yarating va ruxsatlarni tekshiring.');
-    } else if (error.response?.status === 403) {
-      throw new Error('❌ Ruxsat yo\'q! Application Key da Read/Write ruxsatlari bor-mi tekshiring.');
-    } else if (error.code === 'ENOTFOUND') {
-      throw new Error('❌ Internet ulanishi muammosi');
-    } else {
-      throw new Error(`❌ Backblaze xatosi: ${error.message}`);
-    }
-  }
 }
 
 // Fayl nomini tozalash
@@ -242,69 +145,66 @@ function sanitizeFilename(filename) {
     .toLowerCase();
 }
 
-// Faylni Backblaze ga yuklash
-async function uploadFileToB2(filePath, fileName, mimeType) {
+// Faylni Catbox.moe ga yuklash
+async function uploadFileToCatbox(filePath, fileName, mimeType) {
   try {
-    if (!b2 || !bucketId) {
-      throw new Error('B2 ishga tushirilmagan');
-    }
-
-    // Fayl mavjudligini tekshirish
     if (!existsSync(filePath)) {
       throw new Error(`Fayl topilmadi: ${filePath}`);
     }
 
-    console.log('📤 Uploading:', fileName);
+    console.log('📤 Uploading to Catbox:', fileName);
     
-    // Fayl o'qish
     const fileBuffer = await fs.readFile(filePath);
-    console.log('📁 File size:', (fileBuffer.length / 1024 / 1024).toFixed(2), 'MB');
+    const fileSizeMB = (fileBuffer.length / 1024 / 1024).toFixed(2);
+    console.log('📁 File size:', fileSizeMB, 'MB');
 
-    // Upload URL olish
-    const uploadUrlResponse = await b2.getUploadUrl({ bucketId });
-    
-    if (!uploadUrlResponse?.data) {
-      throw new Error('Upload URL olinmadi');
+    // Katta fayllar uchun warning (Catbox max 200MB, ammo user 1GB so'ragan, lekin cheklash kodda qo'yiladi)
+    if (fileBuffer.length > 200 * 1024 * 1024) { // 200MB Catbox limit
+      throw new Error('Fayl hajmi Catbox.moe uchun juda katta (max 200MB)');
     }
 
-    // Faylni yuklash
-    const uploadResponse = await b2.uploadFile({
-      uploadUrl: uploadUrlResponse.data.uploadUrl,
-      uploadAuthToken: uploadUrlResponse.data.authorizationToken,
-      fileName: fileName,
-      data: fileBuffer,
-      contentType: mimeType || 'application/octet-stream',
+    const form = new FormData();
+    form.append('reqtype', 'fileupload');
+    form.append('userhash', CATBOX_USER_HASH);
+    form.append('fileToUpload', fileBuffer, {
+      filename: fileName,
+      contentType: mimeType || 'application/octet-stream'
     });
 
-    if (!uploadResponse?.data) {
-      throw new Error('Upload javob bo\'sh');
+    console.log('🔗 Uploading to Catbox API...');
+    const uploadStartTime = Date.now();
+
+    const response = await axios.post(CATBOX_API_URL, form, {
+      headers: {
+        ...form.getHeaders()
+      },
+      timeout: 300000 // 5 minut
+    });
+
+    const uploadDuration = ((Date.now() - uploadStartTime) / 1000).toFixed(2);
+
+    if (response.status !== 200 || !response.data.startsWith('https://')) {
+      throw new Error(`Upload muvaffaqiyatsiz: ${response.data}`);
     }
 
-    console.log('✅ Upload successful:', uploadResponse.data.fileName);
-    return uploadResponse.data;
+    const publicUrl = response.data.trim();
+
+    console.log('✅ Upload successful:', publicUrl);
+    console.log('⏱️ Upload time:', uploadDuration, 'seconds');
+    console.log('📊 Upload speed:', ((fileBuffer.length / 1024 / 1024) / uploadDuration).toFixed(2), 'MB/s');
+    
+    return {
+      fileName: fileName,
+      publicUrl: publicUrl
+    };
 
   } catch (error) {
     console.error('❌ Upload error:', error.message);
-    throw new Error(`Upload xatosi: ${error.message}`);
-  }
-}
-
-// Umumiy URL yaratish
-function createPublicUrl(fileName) {
-  try {
-    if (!downloadUrl || !BUCKET_NAME) {
-      throw new Error('Download URL yoki bucket nomi yo\'q');
+    if (error.response) {
+      console.error('Upload response status:', error.response.status);
+      console.error('Upload response data:', error.response.data);
     }
-    
-    const encodedFileName = encodeURIComponent(fileName);
-    const publicUrl = `${downloadUrl}/file/${BUCKET_NAME}/${encodedFileName}`;
-    
-    console.log('🔗 Public URL:', publicUrl);
-    return publicUrl;
-    
-  } catch (error) {
-    console.error('❌ URL yaratish xatosi:', error.message);
-    throw new Error(`URL yaratish xatosi: ${error.message}`);
+    throw new Error(`Upload xatosi: ${error.message}`);
   }
 }
 
@@ -323,7 +223,7 @@ async function cleanupTempFile(filePath) {
 export const config = {
   api: {
     bodyParser: false,
-    responseLimit: false, // Katta fayllar uchun javob cheklovini olib tashlash
+    responseLimit: false,
   },
 };
 
@@ -335,29 +235,29 @@ export default async function handler(req, res) {
     });
   }
 
+  console.log('🚀 Starting upload process...');
+  console.log('🌐 Request headers:', {
+    'content-type': req.headers['content-type'],
+    'content-length': req.headers['content-length'],
+    'user-agent': req.headers['user-agent']
+  });
+
   // FFmpeg mavjudligini tekshirish
   const isFFmpegAvailable = await checkFFmpegAvailability();
 
   try {
-    console.log('🚀 Starting upload process...');
-    
-    // Backblaze ni ishga tushirish
-    await initializeB2();
-    
-    // Vaqtinchalik papka yaratish va tekshirish
+    // Vaqtinchalik papka sozlash
     let tempDir;
     try {
       tempDir = os.tmpdir();
       console.log('📁 Using temp directory:', tempDir);
       
-      // Temp papka mavjudligini tekshirish va yaratish
       if (!existsSync(tempDir)) {
         await fs.mkdir(tempDir, { recursive: true });
         console.log('📁 Created temp directory:', tempDir);
       }
     } catch (tempError) {
       console.error('❌ Temp directory error:', tempError.message);
-      // Fallback - joriy papkada temp yaratish
       tempDir = path.join(process.cwd(), 'temp');
       if (!existsSync(tempDir)) {
         await fs.mkdir(tempDir, { recursive: true });
@@ -365,19 +265,18 @@ export default async function handler(req, res) {
       }
     }
     
-    // Formidable sozlamalari - barcha hajm cheklovlarini olib tashlash
+    // Formidable sozlamalari - max 1GB per file
     const form = formidable({
       multiples: true,
       uploadDir: tempDir,
       keepExtensions: true,
       allowEmptyFiles: false,
       minFileSize: 1,
-      // Barcha hajm cheklovlarini olib tashladik
-      maxFileSize: Infinity, // Cheksiz fayl hajmi
-      maxFiles: Infinity,    // Cheksiz fayl soni  
-      maxTotalFileSize: Infinity, // Cheksiz jami hajm
-      maxFieldsSize: Infinity,    // Cheksiz field hajmi
-      createDirsFromUploads: true, // Papkani avtomatik yaratish
+      maxFileSize: 1024 * 1024 * 1024, // 1GB
+      maxFiles: Infinity,    
+      maxTotalFileSize: Infinity,
+      maxFieldsSize: Infinity,
+      createDirsFromUploads: true,
     });
 
     console.log('📋 Parsing form data...');
@@ -397,7 +296,6 @@ export default async function handler(req, res) {
     console.log('📁 Files received:', Object.keys(files));
     console.log('📝 Fields received:', Object.keys(fields));
 
-    // Fayl mavjudligini tekshirish
     if (!files.file) {
       return res.status(400).json({ 
         error: 'Hech qanday fayl yuklanmadi',
@@ -406,11 +304,8 @@ export default async function handler(req, res) {
     }
 
     const uploadedFiles = Array.isArray(files.file) ? files.file : [files.file];
-    
-    // Jami hajmni hisoblash (faqat ma'lumot uchun, cheklash uchun emas)
     const totalSize = uploadedFiles.reduce((sum, file) => sum + (file.size || 0), 0);
 
-    // Fields ni olish
     const type = Array.isArray(fields.type) ? fields.type[0] : (fields.type || 'post');
     const username = Array.isArray(fields.username) ? fields.username[0] : fields.username;
     const postIndex = Array.isArray(fields.postIndex) ? fields.postIndex[0] : fields.postIndex;
@@ -423,7 +318,7 @@ export default async function handler(req, res) {
     }
 
     console.log(`📊 Upload session: type=${type}, username=${username}, files=${uploadedFiles.length}`);
-    console.log(`📊 Total size: ${(totalSize / 1024 / 1024 / 1024).toFixed(2)} GB`);
+    console.log(`📊 Total size: ${(totalSize / 1024 / 1024).toFixed(2)} MB`);
     console.log(`🎬 Video compression: ${isFFmpegAvailable ? 'ENABLED' : 'DISABLED'}`);
 
     const results = [];
@@ -444,14 +339,11 @@ export default async function handler(req, res) {
         console.log(`📤 Processing ${i + 1}/${uploadedFiles.length}: ${originalName}`);
         console.log(`📊 Size: ${(fileSize / 1024 / 1024).toFixed(2)}MB, Type: ${mimeType}`);
 
-        // Faqat bo'sh fayl tekshirish qoldik
         if (fileSize === 0) {
           throw new Error('Bo\'sh fayl');
         }
 
-        // Fayl mavjudligini tekshirish
         if (!existsSync(tempFilePath)) {
-          // Agar fayl yo'q bo'lsa, biroz kutib qayta tekshirish
           console.log('⏳ File not found, waiting 1 second...');
           await new Promise(resolve => setTimeout(resolve, 1000));
           
@@ -460,7 +352,6 @@ export default async function handler(req, res) {
           }
         }
 
-        // Fayl hajmini olish va tekshirish
         const fileStats = await fs.stat(tempFilePath);
         const actualFileSize = fileStats.size;
         
@@ -470,7 +361,7 @@ export default async function handler(req, res) {
           throw new Error('Bo\'sh fayl');
         }
 
-        // Video fayl ekanligini aniqlash va siqish
+        // Video kompressiya
         let finalFilePath = tempFilePath;
         let finalFileSize = actualFileSize;
         let compressionInfo = null;
@@ -478,7 +369,6 @@ export default async function handler(req, res) {
         if (isFFmpegAvailable && isVideoFile(mimeType, originalName)) {
           console.log('🎬 Video fayl aniqlandi, kompressiya boshlanmoqda...');
           
-          // Kompressiya uchun yangi fayl yo'li
           const compressedName = `compressed_${Date.now()}_${path.basename(tempFilePath, path.extname(tempFilePath))}.mp4`;
           compressedFilePath = path.join(tempDir, compressedName);
           
@@ -516,10 +406,10 @@ export default async function handler(req, res) {
         console.log(`🎯 Destination: ${fileName}`);
 
         // Faylni yuklash
-        const uploadResult = await uploadFileToB2(finalFilePath, fileName, compressionInfo?.success ? 'video/mp4' : mimeType);
+        const uploadResult = await uploadFileToCatbox(finalFilePath, fileName, compressionInfo?.success ? 'video/mp4' : mimeType);
         
-        // Umumiy URL yaratish
-        const publicUrl = createPublicUrl(fileName);
+        // Umumiy URL
+        const publicUrl = uploadResult.publicUrl;
 
         results.push({
           success: true,
@@ -529,7 +419,6 @@ export default async function handler(req, res) {
           fileSize: finalFileSize,
           originalFileSize: actualFileSize,
           mimeType: compressionInfo?.success ? 'video/mp4' : mimeType,
-          bucket: BUCKET_NAME,
           type: type,
           fileIndex: i + 1,
           totalFiles: uploadedFiles.length,
@@ -567,9 +456,9 @@ export default async function handler(req, res) {
         totalFiles: uploadedFiles.length,
         successful: results.length,
         failed: errors.length,
-        totalSize: totalSize < 1024 * 1024 * 1024 
-          ? `${(totalSize / 1024 / 1024).toFixed(2)}MB`
-          : `${(totalSize / 1024 / 1024 / 1024).toFixed(2)}GB`,
+        totalSize: totalSize < 1024 * 1024 
+          ? `${(totalSize / 1024).toFixed(2)}KB`
+          : `${(totalSize / 1024 / 1024).toFixed(2)}MB`,
         videosCompressed: results.filter(r => r.compressed).length,
         ffmpegAvailable: isFFmpegAvailable,
       },
@@ -587,7 +476,11 @@ export default async function handler(req, res) {
     return res.status(500).json({ 
       error: 'Server xatoligi', 
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      env_check: {
+        hasUserHash: !!CATBOX_USER_HASH,
+        nodeEnv: process.env.NODE_ENV
+      }
     });
   }
-}
+} 

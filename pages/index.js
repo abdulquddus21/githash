@@ -1349,7 +1349,7 @@ async function renderPopularUsers(users) {
   const headerDiv = document.createElement('div');
   headerDiv.className = 'section-header';
   headerDiv.innerHTML = '<i class="fa-solid fa-fire section-icon"></i>' +
-    '<span class="section-title">Eng Mashxur profillar</span>';
+    '<span class="section-title">Eng Mashxur profillar <i class="fa-regular fa-bell"></i></span>'; 
   results.appendChild(headerDiv);
 
   for (let i = 0; i < users.length; i++) {
