@@ -1,5 +1,6 @@
 import Head from 'next/head';
 import { useRouter } from 'next/router';
+import { IoChatbubbleEllipsesSharp } from "react-icons/io5";
 import { useEffect, useState } from 'react';
 
 export default function Home() {
@@ -264,7 +265,6 @@ export default function Home() {
           padding: 8px;
           font-size: 12px;
         }
-
         .loading {
           opacity: 0.6;
           pointer-events: none;
@@ -867,6 +867,7 @@ export default function Home() {
           display: flex;
           align-items: center;
           gap: 8px;
+          justify-content: space-between;
           margin-bottom: 12px;
           padding-bottom: 8px;
           border-bottom: 1px solid rgba(255, 255, 255, 0.05);
@@ -1135,6 +1136,8 @@ export default function Home() {
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh6Yndmb2Fjc25ybWdqbWlsZGNyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxOTkxNzUsImV4cCI6MjA3Mzc3NTE3NX0.c10rEbuzQIkVvuJEecEltokgaj6AqjyP5IoFVffjizc";
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+const bucket = 'instagram-media';
+
 const mainInput = document.getElementById('main-input');
 const btnSearch = document.getElementById('btn-search');
 const results = document.getElementById('results');
@@ -1349,7 +1352,7 @@ async function renderPopularUsers(users) {
   const headerDiv = document.createElement('div');
   headerDiv.className = 'section-header';
   headerDiv.innerHTML = '<i class="fa-solid fa-fire section-icon"></i>' +
-    '<span class="section-title">Eng Mashxur profillar <i class="fa-regular fa-bell"></i></span>'; 
+    '<span class="section-title">Top profillar </span> <a style="font-size:22px; color:white; border:2px solid; padding:0px 5px; border-radius:10px;" href="/chats"> <i  class="fa-solid fa-comment-sms"></i> </a>'; 
   results.appendChild(headerDiv);
 
   for (let i = 0; i < users.length; i++) {
@@ -1478,8 +1481,64 @@ function addPostEntry() {
   postsContainer.appendChild(postDiv);
   postEntries.push(postDiv);
 
-  postDiv.querySelector('.remove-post').addEventListener('click', function(e) {
+  const mediaInput = postDiv.querySelector('.post-media');
+  const uploadBtn = document.createElement('button');
+  uploadBtn.className = 'btn-primary btn-upload-post';
+  uploadBtn.innerHTML = '<i class="fa-solid fa-upload"></i> Jonatish';
+  uploadBtn.style.display = 'none';
+  uploadBtn.style.marginTop = '8px';
+  postDiv.appendChild(uploadBtn);
+
+  mediaInput.addEventListener('change', () => {
+    if (mediaInput.files.length > 0) {
+      uploadBtn.style.display = 'block';
+    } else {
+      uploadBtn.style.display = 'none';
+    }
+  });
+
+  uploadBtn.addEventListener('click', async (e) => {
     e.preventDefault();
+    const username = addUsername.value.trim();
+    if (!username) {
+      window.showModal('error', "Username kiriting avval");
+      return;
+    }
+    const content = postDiv.querySelector('.post-content').value.trim();
+    const files = Array.from(mediaInput.files);
+    const progress = postDiv.querySelector('.upload-progress');
+    if (files.length === 0) {
+      window.showModal('error', "Media fayllarni tanlang");
+      return;
+    }
+    try {
+      uploadBtn.classList.add('loading');
+      uploadBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Yuklanmoqda...';
+      const urls = await uploadToSupabase(files, 'post', username, postEntries.indexOf(postDiv) + 1, (percent) => {
+        showProgress(progress, percent);
+      });
+      postDiv.dataset.mediaUrls = JSON.stringify(urls);
+      postDiv.dataset.content = content;
+      uploadBtn.disabled = true;
+      uploadBtn.innerHTML = '<i class="fa-solid fa-check"></i> Yuklandi';
+      mediaInput.disabled = true;
+      postDiv.querySelector('.post-content').disabled = true;
+    } catch (error) {
+      window.showModal('error', "Yuklashda xato: " + error.message);
+    } finally {
+      uploadBtn.classList.remove('loading');
+    }
+  });
+
+  postDiv.querySelector('.remove-post').addEventListener('click', async function(e) {
+    e.preventDefault();
+    if (postDiv.dataset.mediaUrls) {
+      const urls = JSON.parse(postDiv.dataset.mediaUrls);
+      for (let url of urls) {
+        const path = url.split('/object/public/' + bucket + '/')[1];
+        await supabaseClient.storage.from(bucket).remove([path]);
+      }
+    }
     postsContainer.removeChild(postDiv);
     postEntries = postEntries.filter(function(p) {
       return p !== postDiv;
@@ -1500,126 +1559,54 @@ function validateFileSize(file, maxSizeMB) {
   return true;
 }
 
-async function uploadToNextJS(files, type, username, postIndex, onProgress) {
-  return new Promise(function(resolve, reject) {
-    try {
-      console.log('Starting upload process...');
-      console.log('Files:', files, 'Type:', type, 'Username:', username);
+async function uploadToSupabase(files, type, username, postIndex = null, onProgress = () => {}) {
+  files = Array.isArray(files) ? files : [files];
+  const urls = [];
+  let totalSize = files.reduce((sum, f) => sum + f.size, 0);
+  let totalLoaded = 0;
 
-      const formData = new FormData();
-      
-      if (Array.isArray(files)) {
-        console.log('Processing ' + files.length + ' files...');
-        for (let i = 0; i < files.length; i++) {
-          const file = files[i];
-          try {
-            validateFileSize(file, 500);
-            formData.append('file', file);
-            console.log('File ' + (i + 1) + ': ' + file.name + ' (' + (file.size / (1024*1024)).toFixed(2) + 'MB)');
-          } catch (error) {
-            console.error('File validation error for ' + file.name + ':', error.message);
-            reject(error);
-            return;
-          }
-        }
-      } else {
-        try {
-          validateFileSize(files, 500);
-          formData.append('file', files);
-          console.log('Single file: ' + files.name + ' (' + (files.size / (1024*1024)).toFixed(2) + 'MB)');
-        } catch (error) {
-          console.error('Single file validation error:', error.message);
-          reject(error);
-          return;
-        }
-      }
-      
-      formData.append('type', type);
-      formData.append('username', username);
-      if (postIndex !== null && postIndex !== undefined) {
-        formData.append('postIndex', postIndex.toString());
-      }
-
-      console.log('FormData prepared, creating XMLHttpRequest...');
-
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', '/api/upload', true);
-      xhr.timeout = 600000;
-
-      console.log('Sending POST request to /api/upload');
-
-      xhr.upload.onprogress = function(event) {
-        if (event.lengthComputable) {
-          const percent = Math.round((event.loaded / event.total) * 100);
-          console.log('Upload progress: ' + percent + '%');
-          if (onProgress) onProgress(percent);
-        }
-      };
-
-      xhr.onload = function() {
-        console.log('Response received. Status: ' + xhr.status);
-        console.log('Response text:', xhr.responseText);
-
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            const data = JSON.parse(xhr.responseText);
-            console.log('Upload successful:', data);
-            
-            if (data.errors && data.errors.length > 0) {
-              console.error('Some files failed:', data.errors);
-              const errorMessages = data.errors.map(function(e) {
-                return e.error;
-              }).join(', ');
-              reject(new Error('Upload failed for some files: ' + errorMessages));
-            } else {
-              const urls = data.uploaded ? data.uploaded.map(function(u) {
-                return u.url;
-              }) : [data.url];
-              console.log('Generated URLs:', urls);
-              resolve(urls);
-            }
-          } catch (parseError) {
-            console.error('JSON parsing error:', parseError);
-            console.error('Raw response:', xhr.responseText);
-            reject(new Error('Upload response parsing error: ' + parseError.message));
-          }
-        } else if (xhr.status === 413) {
-          console.error('File too large (413)');
-          reject(new Error('Fayl hajmi juda katta. Iltimos, kichikroq fayl yuklang.'));
-        } else if (xhr.status === 405) {
-          console.error('Method not allowed (405)');
-          console.error('Response:', xhr.responseText);
-          reject(new Error('Server xatosi: Method Not Allowed. API endpoint POST qabul qilmayapti.'));
-        } else {
-          console.error('HTTP error ' + xhr.status);
-          console.error('Response:', xhr.responseText);
-          reject(new Error('Upload failed with status ' + xhr.status + ': ' + xhr.responseText));
-        }
-      };
-
-      xhr.onerror = function(error) {
-        console.error('Network error:', error);
-        reject(new Error('Network error during upload'));
-      };
-
-      xhr.ontimeout = function() {
-        console.error('Upload timeout');
-        reject(new Error('Upload timeout - fayl yuklash vaqti tugadi'));
-      };
-
-      xhr.onabort = function() {
-        console.error('Upload aborted');
-        reject(new Error('Upload was aborted'));
-      };
-
-      console.log('Sending FormData...');
-      xhr.send(formData);
-      
-    } catch (error) {
-      console.error('Upload setup error:', error);
-      reject(error);
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    validateFileSize(file);
+    let path;
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (type === 'profile') {
+      path = \`profiles/\${username}/profile.\${ext}\`;
+    } else {
+      path = \`posts/\${username}/\${postIndex}_\${i}.\${ext}\`;
     }
-  });
+    const { data: signedData, error: signedError } = await supabaseClient.storage.from(bucket).createSignedUploadUrl(path);
+    if (signedError) throw signedError;
+
+    await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', signedData.url, true);
+      xhr.setRequestHeader('Content-Type', file.type);
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const fileLoaded = e.loaded;
+          const currentTotalLoaded = totalLoaded + fileLoaded;
+          const percent = (currentTotalLoaded / totalSize) * 100;
+          onProgress(percent);
+        }
+      };
+      xhr.onload = () => {
+        if (xhr.status === 200) {
+          totalLoaded += file.size;
+          onProgress((totalLoaded / totalSize) * 100);
+          resolve();
+        } else {
+          reject(new Error(\`Upload failed: \${xhr.status}\`));
+        }
+      };
+      xhr.onerror = reject;
+      xhr.send(file);
+    });
+
+    const { publicUrl } = supabaseClient.storage.from(bucket).getPublicUrl(path);
+    urls.push(publicUrl);
+  }
+  return urls;
 }
 
 function showProgress(progressElement, percent) {
@@ -1668,31 +1655,33 @@ btnAdd.addEventListener('click', async function(e) {
     return; 
   }
 
+  let allUploaded = true;
+  for (let postDiv of postEntries) {
+    const mediaInput = postDiv.querySelector('.post-media');
+    if (mediaInput.files.length > 0 && !postDiv.dataset.mediaUrls) {
+      allUploaded = false;
+      break;
+    }
+  }
+  if (!allUploaded) {
+    window.showModal('error', "Barcha post media larini yuklang avval (Jonatish tugmasi orqali)");
+    return;
+  }
+
   btnAdd.classList.add('loading');
   btnAdd.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Yuklanmoqda...';
 
   try {
-    console.log('Starting add user process...');
-    console.log('Username:', username, 'Note:', note);
-
     let profileUrl = null;
     
     const profileFile = profilePic.files[0];
     if (profileFile) {
-      console.log('Uploading profile picture...');
-      try {
-        const profileUrls = await uploadToNextJS(profileFile, 'profile', username, null, function(percent) {
-          showProgress(profileProgress, percent);
-        });
-        profileUrl = profileUrls[0];
-        console.log('Profile picture uploaded:', profileUrl);
-      } catch (uploadError) {
-        console.error('Profile upload failed:', uploadError);
-        throw new Error('Profil rasm yuklashda xato: ' + uploadError.message);
-      }
+      const profileUrls = await uploadToSupabase(profileFile, 'profile', username, null, function(percent) {
+        showProgress(profileProgress, percent);
+      });
+      profileUrl = profileUrls[0];
     }
 
-    console.log('Inserting account to database...');
     const accountResult = await supabaseClient
       .from('instagram_accounts')
       .insert({ username: username, note: note, profile_pic_url: profileUrl })
@@ -1700,81 +1689,54 @@ btnAdd.addEventListener('click', async function(e) {
       .single();
       
     if (accountResult.error) {
-      console.error('Database insert error:', accountResult.error);
       throw new Error("Hisob qo'shishda xato: " + accountResult.error.message);
     }
     
     const accountId = accountResult.data.id;
-    console.log('Account created with ID:', accountId);
 
-    console.log('Processing ' + postEntries.length + ' posts...');
     for (let i = 0; i < postEntries.length; i++) {
       const postDiv = postEntries[i];
-      const content = postDiv.querySelector('.post-content').value.trim();
-      const mediaFiles = Array.from(postDiv.querySelector('.post-media').files);
-      const postProgress = postDiv.querySelector('.upload-progress');
+      const content = postDiv.dataset.content || postDiv.querySelector('.post-content').value.trim();
+      const mediaUrls = postDiv.dataset.mediaUrls ? JSON.parse(postDiv.dataset.mediaUrls) : [];
       
-      console.log('Processing post ' + (i + 1) + ':', { content: content, mediaCount: mediaFiles.length });
-      
-      if (mediaFiles.length > 0) {
-        console.log('Uploading ' + mediaFiles.length + ' media files for post ' + (i + 1) + '...');
-        try {
-          const mediaUrls = await uploadToNextJS(mediaFiles, 'post', username, i + 1, function(percent) {
-            showProgress(postProgress, percent);
+      if (mediaUrls.length > 0) {
+        for (let j = 0; j < mediaUrls.length; j++) {
+          const mediaUrl = mediaUrls[j];
+          const ext = mediaUrl.split('.').pop().toLowerCase();
+          const mediaType = ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext) ? 'video' : 'image';
+          
+          const postResult = await supabaseClient.from('posts').insert({
+            account_id: accountId,
+            content: content || null,
+            media_url: mediaUrl,
+            media_type: mediaType
           });
           
-          console.log('Media uploaded for post ' + (i + 1) + ':', mediaUrls);
-          
-          for (let j = 0; j < mediaUrls.length; j++) {
-            const mediaUrl = mediaUrls[j];
-            const mediaType = mediaFiles[j].type.startsWith('video') ? 'video' : 'image';
-            
-            const postResult = await supabaseClient.from('posts').insert({
-              account_id: accountId,
-              content: content || null,
-              media_url: mediaUrl,
-              media_type: mediaType
-            });
-            
-            if (postResult.error) {
-              console.error('Post insert error for media ' + (j + 1) + ':', postResult.error);
-              throw new Error('Post ' + (i + 1) + ' media ' + (j + 1) + ' saqlashda xato: ' + postResult.error.message);
-            }
-            
-            console.log('Post saved: ' + mediaType + ' - ' + mediaUrl);
+          if (postResult.error) {
+            throw new Error('Post saqlashda xato: ' + postResult.error.message);
           }
-        } catch (mediaUploadError) {
-          console.error('Media upload failed for post ' + (i + 1) + ':', mediaUploadError);
-          throw new Error('Post ' + (i + 1) + ' media yuklashda xato: ' + mediaUploadError.message);
         }
       } else if (content) {
-        console.log('Saving text-only post ' + (i + 1) + '...');
         const postResult = await supabaseClient.from('posts').insert({
           account_id: accountId,
           content: content
         });
         
         if (postResult.error) {
-          console.error('Text post insert error:', postResult.error);
-          throw new Error('Text post ' + (i + 1) + ' saqlashda xato: ' + postResult.error.message);
+          throw new Error('Text post saqlashda xato: ' + postResult.error.message);
         }
-        
-        console.log('Text post saved: ' + content);
       }
     }
 
-    console.log('Resetting form...');
     addUsername.value = '';
     addNote.value = '';
     profilePic.value = '';
     postsContainer.innerHTML = '';
     postEntries = [];
     
-    console.log('All operations completed successfully!');
     window.showModal('success', "Muvaffaqiyatli qo'shildi!");
 
   } catch (error) {
-    console.error('Global error in add user process:', error);
     window.showModal('error', "Xato: " + error.message);
   } finally {
     btnAdd.classList.remove('loading');

@@ -1,6 +1,8 @@
 import Head from 'next/head'
 import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
+import { IoChatbubbleEllipsesSharp } from "react-icons/io5";
+
 
 export default function Profile() {
   const router = useRouter()
@@ -77,6 +79,10 @@ export default function Profile() {
 
   const goBack = () => {
     window.location.href = "/";
+  }
+
+  const goToChats = () => {
+    window.location.href = "/chats";
   }
 
   const openPostModal = (post) => {
@@ -410,6 +416,26 @@ export default function Profile() {
         }
 
         .back-btn:hover{
+          background: rgba(0,0,0,0.9);
+          transform: scale(1.05);
+        }
+
+        .chat-btn{
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          background: rgba(0,0,0,0.8);
+          border: 1px solid rgba(255,255,255,0.1);
+          color: white;
+          padding: 8px 10px;
+          border-radius: 50%;
+          cursor: pointer;
+          z-index: 100;
+          backdrop-filter: blur(10px);
+          transition: all 0.2s;
+        }
+
+        .chat-btn:hover{
           background: rgba(0,0,0,0.9);
           transform: scale(1.05);
         }
@@ -753,6 +779,10 @@ export default function Profile() {
 
       <button className="back-btn" onClick={goBack}>
         <i className="fa-solid fa-arrow-left"></i>
+      </button>
+
+      <button className="chat-btn" onClick={goToChats}>
+      <IoChatbubbleEllipsesSharp />
       </button>
 
       <div className="profile-container">

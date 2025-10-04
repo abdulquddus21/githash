@@ -6,19 +6,14 @@ import path from 'path';
 import os from 'os';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import axios from 'axios';
-import FormData from 'form-data';
 
 const execAsync = promisify(exec);
 
 // Supabase sozlamalari
 const SUPABASE_URL = 'https://xzbwfoacsnrmgjmildcr.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh6Yndmb2Fjc25ybWdqbWlsZGNyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxOTkxNzUsImV4cCI6MjA3Mzc3NTE3NX0.c10rEbuzQIkVvuJEecEltokgaj6AqjyP5IoFVffjizc';
-
-// Catbox.moe sozlamalari - fayl ichida saqlangan
-const CATBOX_USER_HASH = 'f5b7fa9dcde44f181587045cf';
-const CATBOX_API_URL = 'https://catbox.moe/user/api.php';
-const CATBOX_MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB Catbox.moe cheklovi
+const BUCKET_NAME = 'instagram-media';
+const SUPABASE_MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB, adjust if needed
 
 // Video formatlarini aniqlash
 const VIDEO_FORMATS = [
@@ -63,8 +58,8 @@ async function compressVideo(inputPath, outputPath, mimeType) {
     const fileStats = await fs.stat(inputPath);
     const originalSize = fileStats.size;
 
-    // Agar fayl 200MB dan katta bo‘lsa, siqishni qattiqroq qilish
-    const isLargeFile = originalSize > CATBOX_MAX_FILE_SIZE;
+    // Agar fayl 500MB dan katta bo‘lsa, siqishni qattiqroq qilish
+    const isLargeFile = originalSize > SUPABASE_MAX_FILE_SIZE;
     const adjustedSettings = {
       ...VIDEO_COMPRESSION_SETTINGS,
       videoBitrate: isLargeFile ? '500k' : VIDEO_COMPRESSION_SETTINGS.videoBitrate,
@@ -102,8 +97,8 @@ async function compressVideo(inputPath, outputPath, mimeType) {
       const compressedStats = await fs.stat(outputPath);
       const compressedSize = compressedStats.size;
       
-      if (compressedSize > CATBOX_MAX_FILE_SIZE) {
-        throw new Error('Siqilgan video hali ham 200MB dan katta');
+      if (compressedSize > SUPABASE_MAX_FILE_SIZE) {
+        throw new Error('Siqilgan video hali ham 500MB dan katta');
       }
 
       const compressionRatio = ((originalSize - compressedSize) / originalSize * 100).toFixed(2);
@@ -160,49 +155,44 @@ function sanitizeFilename(filename) {
     .toLowerCase();
 }
 
-// Faylni Catbox.moe ga yuklash
-async function uploadFileToCatbox(filePath, fileName, mimeType) {
+// Faylni Supabase Storage ga yuklash
+async function uploadFileToSupabase(supabase, filePath, fileName, mimeType) {
   try {
     if (!existsSync(filePath)) {
       throw new Error(`Fayl topilmadi: ${filePath}`);
     }
 
-    console.log('📤 Uploading to Catbox:', fileName);
+    console.log('📤 Uploading to Supabase:', fileName);
     
     const fileBuffer = await fs.readFile(filePath);
     const fileSizeMB = (fileBuffer.length / 1024 / 1024).toFixed(2);
     console.log('📁 File size:', fileSizeMB, 'MB');
 
-    // Catbox.moe fayl hajmi cheklovi
-    if (fileBuffer.length > CATBOX_MAX_FILE_SIZE) {
-      throw new Error(`Fayl hajmi Catbox.moe uchun juda katta (${fileSizeMB}MB, max 200MB)`);
+    // Supabase fayl hajmi cheklovi
+    if (fileBuffer.length > SUPABASE_MAX_FILE_SIZE) {
+      throw new Error(`Fayl hajmi Supabase uchun juda katta (${fileSizeMB}MB, max 500MB)`);
     }
 
-    const form = new FormData();
-    form.append('reqtype', 'fileupload');
-    form.append('userhash', CATBOX_USER_HASH);
-    form.append('fileToUpload', fileBuffer, {
-      filename: fileName,
-      contentType: mimeType || 'application/octet-stream'
-    });
-
-    console.log('🔗 Uploading to Catbox API...');
     const uploadStartTime = Date.now();
 
-    const response = await axios.post(CATBOX_API_URL, form, {
-      headers: {
-        ...form.getHeaders()
-      },
-      timeout: 300000 // 5 minut
-    });
+    const { data, error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .upload(fileName, fileBuffer, {
+        contentType: mimeType || 'application/octet-stream',
+        upsert: true
+      });
 
-    const uploadDuration = ((Date.now() - uploadStartTime) / 1000).toFixed(2);
-
-    if (response.status !== 200 || !response.data.startsWith('https://')) {
-      throw new Error(`Upload muvaffaqiyatsiz: ${response.data}`);
+    if (error) {
+      throw new Error(`Upload muvaffaqiyatsiz: ${error.message}`);
     }
 
-    const publicUrl = response.data.trim();
+    const { data: publicData } = supabase.storage
+      .from(BUCKET_NAME)
+      .getPublicUrl(fileName);
+
+    const publicUrl = publicData.publicUrl;
+
+    const uploadDuration = ((Date.now() - uploadStartTime) / 1000).toFixed(2);
 
     console.log('✅ Upload successful:', publicUrl);
     console.log('⏱️ Upload time:', uploadDuration, 'seconds');
@@ -215,10 +205,6 @@ async function uploadFileToCatbox(filePath, fileName, mimeType) {
 
   } catch (error) {
     console.error('❌ Upload error:', error.message);
-    if (error.response) {
-      console.error('Upload response status:', error.response.status);
-      console.error('Upload response data:', error.response.data);
-    }
     throw new Error(`Upload xatosi: ${error.message}`);
   }
 }
@@ -256,6 +242,9 @@ export default async function handler(req, res) {
     'content-length': req.headers['content-length'],
     'user-agent': req.headers['user-agent']
   });
+
+  // Supabase client yaratish
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   // FFmpeg mavjudligini tekshirish
   const isFFmpegAvailable = await checkFFmpegAvailability();
@@ -394,21 +383,21 @@ export default async function handler(req, res) {
               finalFilePath = compressedFilePath;
               finalFileSize = compressionInfo.compressedSize;
               console.log(`✅ Video kompressiya muvaffaqiyatli: ${compressionInfo.compressionRatio}% tejash`);
-            } else if (compressionInfo.useOriginal && actualFileSize <= CATBOX_MAX_FILE_SIZE) {
+            } else if (compressionInfo.useOriginal && actualFileSize <= SUPABASE_MAX_FILE_SIZE) {
               console.log('⚠️ Kompressiya ishlamadi, asl fayl ishlatiladi');
             } else {
-              throw new Error('Video faylni siqish muvaffaqiyatsiz va hajmi 200MB dan katta');
+              throw new Error('Video faylni siqish muvaffaqiyatsiz va hajmi 500MB dan katta');
             }
           } catch (compressionError) {
             console.error('❌ Video kompressiya xatosi:', compressionError.message);
-            if (actualFileSize <= CATBOX_MAX_FILE_SIZE) {
+            if (actualFileSize <= SUPABASE_MAX_FILE_SIZE) {
               console.log('⚠️ Asl fayl ishlatiladi');
             } else {
-              throw new Error('Video faylni siqish muvaffaqiyatsiz va hajmi 200MB dan katta');
+              throw new Error('Video faylni siqish muvaffaqiyatsiz va hajmi 500MB dan katta');
             }
           }
-        } else if (isVideoFile(mimeType, originalName) && !isFFmpegAvailable && actualFileSize > CATBOX_MAX_FILE_SIZE) {
-          throw new Error('Video fayl 200MB dan katta va FFmpeg mavjud emas');
+        } else if (isVideoFile(mimeType, originalName) && !isFFmpegAvailable && actualFileSize > SUPABASE_MAX_FILE_SIZE) {
+          throw new Error('Video fayl 500MB dan katta va FFmpeg mavjud emas');
         }
 
         // Fayl nomini yaratish
@@ -429,7 +418,7 @@ export default async function handler(req, res) {
         console.log(`🎯 Destination: ${fileName}`);
 
         // Faylni yuklash
-        const uploadResult = await uploadFileToCatbox(finalFilePath, fileName, compressionInfo?.success ? 'video/mp4' : mimeType);
+        const uploadResult = await uploadFileToSupabase(supabase, finalFilePath, fileName, compressionInfo?.success ? 'video/mp4' : mimeType);
         
         // Umumiy URL
         const publicUrl = uploadResult.publicUrl;
@@ -499,11 +488,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ 
       error: 'Server xatoligi', 
       details: error.message,
-      timestamp: new Date().toISOString(),
-      env_check: {
-        hasUserHash: !!CATBOX_USER_HASH,
-        nodeEnv: process.env.NODE_ENV
-      }
+      timestamp: new Date().toISOString()
     });
   }
 }
