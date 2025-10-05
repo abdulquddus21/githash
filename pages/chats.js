@@ -117,7 +117,7 @@ export default function Chats() {
     if (selectedPlatform === 'telegram') {
       return '⚠️ Bu xabar anonim sifatida odamga yuboriladi. Bu bilan siz do\'stingizga hazil yoki kerakli ishda foydalansangiz bo\'ladi, ammo birinchi Telegram username yoki telefon raqamini yuboring! Bo\'lmasa xabar hech kimga bormaydi!'
     } else {
-      return '⚠️ Bu xabar anonim sifatida Instagram orqali yuboriladi. Instagram username ni to\'g\'ri kiriting! Xabaringiz 24 soat ichida yetib boradi!'
+      return 'Esda Tuting bu Habar telegramga qaraganda sekinroq boradi agar profile private bolmasa va yozib bolmaydigan qilib qoymagan bolsa⚠️ Bu xabar anonim sifatida Instagram orqali yuboriladi. Instagram username ni to\'g\'ri kiriting! Xabaringiz 24 soat ichida yetib boradi!'
     }
   }
 
@@ -125,7 +125,7 @@ export default function Chats() {
     if (!selectedPlatform) return ''
     return selectedPlatform === 'telegram' 
       ? 'username yoki telefon raqami' 
-      : 'Instagram username (@siz_username)'
+      : 'Instagram username yozing'
   }
 
   return (
