@@ -11,61 +11,105 @@ export default function Reels() {
   const [showShare, setShowShare] = useState(false)
   const [commentText, setCommentText] = useState('')
   const [isSubscribed, setIsSubscribed] = useState(false)
+  const [mediaLoading, setMediaLoading] = useState(true)
   const [isPaused, setIsPaused] = useState(false)
-  const [mediaLoaded, setMediaLoaded] = useState(false)
+  const [isTransitioning, setIsTransitioning] = useState(false)
   const videoRefs = useRef([])
   const audioRef = useRef(null)
   const lastTap = useRef(0)
-  const tapTimer = useRef(null)
   const touchStartY = useRef(0)
+  const currentPhonkRef = useRef(null)
+
+  const phonkTracks = [
+    '/assets/phonk/1.mp3',
+    '/assets/phonk/2.mp3',
+    '/assets/phonk/3.mp3',
+    '/assets/phonk/4.mp3',
+    '/assets/phonk/5.mp3'
+  ]
 
   useEffect(() => {
     loadPosts()
+    // Preload audio
+    audioRef.current = new Audio()
   }, [])
 
   useEffect(() => {
-    setMediaLoaded(false)
-    setIsPaused(false)
-    checkSubscription()
-    preloadNextAndPrev()
+    if (posts.length > 0) {
+      handleMediaChange()
+    }
+  }, [currentIndex, posts])
 
-    if (posts[currentIndex]) {
-      const currentPost = posts[currentIndex]
-      videoRefs.current.forEach((video, index) => {
-        if (video && index === currentIndex && currentPost.media_type === 'video') {
-          video.play().catch(e => console.log('Play error:', e))
-        } else if (video) {
-          video.pause()
-          video.currentTime = 0
+  const handleMediaChange = async () => {
+    setMediaLoading(true)
+    setIsTransitioning(true)
+
+    // Stop previous audio
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+    }
+
+    // Pause all videos
+    videoRefs.current.forEach((video, index) => {
+      if (video && index !== currentIndex) {
+        video.pause()
+        video.currentTime = 0
+      }
+    })
+
+    const currentPost = posts[currentIndex]
+
+    if (currentPost.media_type === 'video') {
+      const video = videoRefs.current[currentIndex]
+      if (video) {
+        try {
+          await video.play()
+          setMediaLoading(false)
+        } catch (e) {
+          console.log('Play error:', e)
+          setMediaLoading(false)
         }
-      })
+      }
+    } else {
+      // For images, play random phonk
+      playRandomPhonk()
+      setMediaLoading(false)
+    }
 
-      if (currentPost.media_type !== 'video' && audioRef.current) {
-        audioRef.current.src = currentPost.phonk
-        audioRef.current.load()
+    checkSubscription()
+    setTimeout(() => setIsTransitioning(false), 300)
+  }
+
+  const playRandomPhonk = () => {
+    if (!audioRef.current) return
+
+    const randomTrack = phonkTracks[Math.floor(Math.random() * phonkTracks.length)]
+    
+    // Don't replay the same track
+    if (currentPhonkRef.current === randomTrack && audioRef.current.currentTime > 0) {
+      audioRef.current.currentTime = 0
+      if (!isPaused) {
         audioRef.current.play().catch(e => console.log('Audio play error:', e))
       }
+      return
     }
-  }, [currentIndex])
 
-  useEffect(() => {
-    if (posts[currentIndex]) {
-      const currentPost = posts[currentIndex]
-      if (isPaused) {
-        if (currentPost.media_type === 'video' && videoRefs.current[currentIndex]) {
-          videoRefs.current[currentIndex].pause()
-        } else if (audioRef.current) {
-          audioRef.current.pause()
-        }
-      } else {
-        if (currentPost.media_type === 'video' && videoRefs.current[currentIndex]) {
-          videoRefs.current[currentIndex].play().catch(e => console.log('Play error:', e))
-        } else if (audioRef.current) {
-          audioRef.current.play().catch(e => console.log('Play error:', e))
-        }
-      }
+    currentPhonkRef.current = randomTrack
+    audioRef.current.src = randomTrack
+    audioRef.current.loop = true
+    
+    if (!isPaused) {
+      audioRef.current.play().catch(e => console.log('Audio play error:', e))
     }
-  }, [isPaused])
+
+    // Reset after 4 seconds
+    setTimeout(() => {
+      if (audioRef.current && currentPhonkRef.current === randomTrack) {
+        audioRef.current.currentTime = 0
+      }
+    }, 4000)
+  }
 
   const loadPosts = async () => {
     try {
@@ -91,8 +135,6 @@ export default function Reels() {
       if (error) throw error
 
       const shuffled = postsData.sort(() => Math.random() - 0.5)
-
-      const phonks = Array.from({ length: 10 }, (_, i) => `/assets/phonk/phonk${i + 1}.mp3`) // Assume 10 phonk files
 
       const postsWithStats = await Promise.all(shuffled.map(async (post) => {
         const visitorId = getVisitorId()
@@ -123,8 +165,7 @@ export default function Reels() {
           userReaction: reactionData?.reaction_type || null,
           likesCount,
           dislikesCount,
-          comments: commentsData || [],
-          phonk: post.media_type !== 'video' ? phonks[Math.floor(Math.random() * phonks.length)] : null
+          comments: commentsData || []
         }
       }))
 
@@ -169,45 +210,42 @@ export default function Reels() {
     return visitorId
   }
 
-  const preloadNextAndPrev = () => {
-    const preloadMedia = (post) => {
-      if (!post) return
-      if (post.media_type === 'video') {
-        const vid = document.createElement('video')
-        vid.src = post.media_url
-        vid.preload = 'auto'
-        vid.load()
-      } else {
-        const img = new Image()
-        img.src = post.media_url
-      }
-    }
-
-    if (currentIndex > 0) {
-      preloadMedia(posts[currentIndex - 1])
-    }
-    if (currentIndex + 1 < posts.length) {
-      preloadMedia(posts[currentIndex + 1])
-    }
-  }
-
-  const togglePlayPause = () => {
-    setIsPaused(prev => !prev)
-  }
-
-  const handleTap = (e) => {
-    const currentTime = Date.now()
+  const handleDoubleTap = (e) => {
+    const currentTime = new Date().getTime()
     const tapLength = currentTime - lastTap.current
-    lastTap.current = currentTime
-
+    
     if (tapLength < 300 && tapLength > 0) {
       handleReaction(posts[currentIndex].id, 'like')
       showLikeAnimation(e)
-      if (tapTimer.current) clearTimeout(tapTimer.current)
+    }
+    lastTap.current = currentTime
+  }
+
+  const handleSingleTap = () => {
+    const currentPost = posts[currentIndex]
+    
+    if (currentPost.media_type === 'video') {
+      const video = videoRefs.current[currentIndex]
+      if (video) {
+        if (video.paused) {
+          video.play()
+          setIsPaused(false)
+        } else {
+          video.pause()
+          setIsPaused(true)
+        }
+      }
     } else {
-      tapTimer.current = setTimeout(() => {
-        togglePlayPause()
-      }, 300)
+      // For images, toggle phonk
+      if (audioRef.current) {
+        if (audioRef.current.paused) {
+          audioRef.current.play()
+          setIsPaused(false)
+        } else {
+          audioRef.current.pause()
+          setIsPaused(true)
+        }
+      }
     }
   }
 
@@ -231,7 +269,6 @@ export default function Reels() {
       const visitorId = getVisitorId()
       const currentPost = posts[currentIndex]
 
-      // Optimistic update
       setPosts(posts.map(p => {
         if (p.id === postId) {
           if (p.userReaction === reactionType) {
@@ -358,7 +395,7 @@ export default function Reels() {
     const touchEndY = e.changedTouches[0].clientY
     const diff = touchStartY.current - touchEndY
 
-    if (Math.abs(diff) > 50) {
+    if (Math.abs(diff) > 80) {
       if (diff > 0 && currentIndex < posts.length - 1) {
         setCurrentIndex(currentIndex + 1)
       } else if (diff < 0 && currentIndex > 0) {
@@ -368,6 +405,9 @@ export default function Reels() {
   }
 
   const goBack = () => {
+    if (audioRef.current) {
+      audioRef.current.pause()
+    }
     router.back()
   }
 
@@ -409,13 +449,10 @@ export default function Reels() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        color: 'black',
-        background: 'white'
+        background: 'black',
+        color: 'white'
       }}>
-        <div style={{ textAlign: 'center' }}>
-          <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: '24px', marginBottom: '16px' }}></i>
-          <div>Yuklanmoqda...</div>
-        </div>
+        <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: '32px' }}></i>
       </div>
     )
   }
@@ -464,21 +501,18 @@ export default function Reels() {
           box-sizing: border-box;
           margin: 0;
           padding: 0;
-          -webkit-tap-highlight-color: transparent;
-          outline: none;
         }
 
         html, body {
           height: 100%;
           overflow: hidden;
-          background:black;
         }
 
         body {
           font-family: "Space Mono", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
           background: black;
           color: white;
-          -webkit-tap-highlight-color: transparent;
+           -webkit-tap-highlight-color: transparent;
           outline: none;
         }
 
@@ -499,36 +533,46 @@ export default function Reels() {
           display: flex;
           align-items: center;
           justify-content: center;
-          transition: transform 0.3s ease-out;
+          transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .reel.transitioning {
+          transform: translateY(-20px);
+          opacity: 0.8;
         }
 
         .reel video,
         .reel img {
           min-width: 100%;
-          min-height: 100%;
           width: 100%;
           height: 100%;
-          object-fit: contain;
+          object-fit: cover;
           background: black;
         }
 
-        .loader {
+        .media-loader {
           position: absolute;
           top: 50%;
           left: 50%;
           transform: translate(-50%, -50%);
-          z-index: 20;
+          z-index: 5;
         }
 
-        .play-overlay {
+        .pause-icon {
           position: absolute;
           top: 50%;
           left: 50%;
           transform: translate(-50%, -50%);
-          z-index: 20;
           font-size: 64px;
-          opacity: 0.7;
-          cursor: pointer;
+          color: rgba(255, 255, 255, 0.8);
+          opacity: 0;
+          transition: opacity 0.2s;
+          pointer-events: none;
+          z-index: 5;
+        }
+
+        .pause-icon.visible {
+          opacity: 1;
         }
 
         .back-btn {
@@ -822,25 +866,15 @@ export default function Reels() {
 
       <div 
         className="reels-container"
+        onClick={handleDoubleTap}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
-        onClick={handleTap}
       >
-        <button className="back-btn" onClick={goBack}>
+        <button className="back-btn" onClick={(e) => { e.stopPropagation(); goBack(); }}>
           <i className="fa-solid fa-arrow-left"></i>
         </button>
 
-        <div className="reel">
-          {!mediaLoaded && (
-            <div className="loader">
-              <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: '32px' }}></i>
-            </div>
-          )}
-          {isPaused && mediaLoaded && (
-            <div className="play-overlay">
-              <i className="fa-solid fa-play"></i>
-            </div>
-          )}
+        <div className={`reel ${isTransitioning ? 'transitioning' : ''}`}>
           {currentPost.media_type === 'video' ? (
             <video
               ref={el => videoRefs.current[currentIndex] = el}
@@ -848,19 +882,27 @@ export default function Reels() {
               loop
               playsInline
               controls={false}
-              preload="auto"
-              onCanPlay={() => setMediaLoaded(true)}
+              onLoadedData={() => setMediaLoading(false)}
+              onClick={(e) => { e.stopPropagation(); handleSingleTap(); }}
             />
           ) : (
-            <>
-              <img 
-                src={currentPost.media_url} 
-                alt="Post" 
-                onLoad={() => setMediaLoaded(true)}
-              />
-              <audio ref={audioRef} loop />
-            </>
+            <img 
+              src={currentPost.media_url} 
+              alt="Post"
+              onLoad={() => setMediaLoading(false)}
+              onClick={(e) => { e.stopPropagation(); handleSingleTap(); }}
+            />
           )}
+        </div>
+
+        {mediaLoading && (
+          <div className="media-loader">
+            <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: '48px', color: 'white' }}></i>
+          </div>
+        )}
+
+        <div className={`pause-icon ${isPaused ? 'visible' : ''}`}>
+          <i className="fa-solid fa-pause"></i>
         </div>
 
         <div className="user-info" onClick={(e) => { e.stopPropagation(); goToProfile(); }}>
