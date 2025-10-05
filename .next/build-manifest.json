@@ -27,10 +27,10 @@
       "static/chunks/main.js",
       "static/chunks/pages/_error.js"
     ],
-    "/chats": [
+    "/reels": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
-      "static/chunks/pages/chats.js"
+      "static/chunks/pages/reels.js"
     ]
   },
   "ampFirstPages": []
