@@ -2,6 +2,8 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { IoChatbubbleEllipsesSharp } from "react-icons/io5";
 import { useEffect, useState } from 'react';
+import { IoMdPlay } from "react-icons/io";
+
 
 export default function Home() {
   const router = useRouter();
@@ -1358,7 +1360,7 @@ async function renderPopularUsers(users) {
   const headerDiv = document.createElement('div');
   headerDiv.className = 'section-header';
   headerDiv.innerHTML = '<div class="bir"><i class="fa-solid fa-fire section-icon"></i>' +
-    '<span class="section-title">Top profillar</span></div> <a style="font-size:22px; color:white; border:2px solid; padding:0px 5px; border-radius:10px;" href="/chats"> <i  class="fa-solid fa-comment-sms"></i> </a>'; 
+    '<span class="section-title">Top profillar</span></div> <div style="display:flex; align-items:center; gap:10px;"><a style="font-size:22px; color:white; border:2px solid; padding:0px 5px; border-radius:10px;" href="/chats"> <i  class="fa-solid fa-comment-sms"></i>  </a> <a style="font-size:22px; color:white; border:2px solid; padding:0px 7px; border-radius:10px;" href="/reels"> <i class="fa-solid fa-play"></i> </a></div>'; 
   results.appendChild(headerDiv);
 
   for (let i = 0; i < users.length; i++) {

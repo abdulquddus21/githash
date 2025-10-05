@@ -409,10 +409,13 @@ export default function Reels() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'black',
-        color: 'white'
+        color: 'black',
+        background: 'white'
       }}>
-        <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: '32px' }}></i>
+        <div style={{ textAlign: 'center' }}>
+          <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: '24px', marginBottom: '16px' }}></i>
+          <div>Yuklanmoqda...</div>
+        </div>
       </div>
     )
   }
@@ -461,17 +464,22 @@ export default function Reels() {
           box-sizing: border-box;
           margin: 0;
           padding: 0;
+          -webkit-tap-highlight-color: transparent;
+          outline: none;
         }
 
         html, body {
           height: 100%;
           overflow: hidden;
+          background:black;
         }
 
         body {
           font-family: "Space Mono", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
           background: black;
           color: white;
+          -webkit-tap-highlight-color: transparent;
+          outline: none;
         }
 
         .reels-container {
