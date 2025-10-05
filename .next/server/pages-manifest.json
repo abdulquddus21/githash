@@ -2,7 +2,7 @@
   "/_app": "pages/_app.js",
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
-  "/chats": "pages/chats.js",
   "/": "pages/index.js",
+  "/chats": "pages/chats.js",
   "/profile/[username]": "pages/profile/[username].js"
 }

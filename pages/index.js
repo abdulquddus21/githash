@@ -873,6 +873,12 @@ export default function Home() {
           border-bottom: 1px solid rgba(255, 255, 255, 0.05);
         }
 
+        .bir{
+          display:flex;
+          gap: 8px;
+         align-items:center;
+          }
+
         .section-title {
           font-size: 14px;
           font-weight: 700;
@@ -1351,8 +1357,8 @@ async function renderPopularUsers(users) {
 
   const headerDiv = document.createElement('div');
   headerDiv.className = 'section-header';
-  headerDiv.innerHTML = '<i class="fa-solid fa-fire section-icon"></i>' +
-    '<span class="section-title">Top profillar </span> <a style="font-size:22px; color:white; border:2px solid; padding:0px 5px; border-radius:10px;" href="/chats"> <i  class="fa-solid fa-comment-sms"></i> </a>'; 
+  headerDiv.innerHTML = '<div class="bir"><i class="fa-solid fa-fire section-icon"></i>' +
+    '<span class="section-title">Top profillar</span></div> <a style="font-size:22px; color:white; border:2px solid; padding:0px 5px; border-radius:10px;" href="/chats"> <i  class="fa-solid fa-comment-sms"></i> </a>'; 
   results.appendChild(headerDiv);
 
   for (let i = 0; i < users.length; i++) {
